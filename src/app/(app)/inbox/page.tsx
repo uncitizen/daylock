@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { addMinutes, format } from "date-fns";
+import { TaskTitle } from "@/components/TaskTitle";
 import { clientApi, type Task, type TaskAnalysis } from "@/lib/client-api";
 
 type RecurrenceMode = "habit" | "rolling" | "fixed";
@@ -240,6 +241,12 @@ export default function InboxPage() {
   function toggleMonth(m: number) {
     setActiveMonths((prev) =>
       prev.includes(m) ? prev.filter((x) => x !== m) : [...prev, m].sort((a, b) => a - b),
+    );
+  }
+
+  function applyRename(taskId: string, nextTitle: string) {
+    setTasks((prev) =>
+      prev.map((t) => (t.id === taskId ? { ...t, title: nextTitle } : t)),
     );
   }
 
@@ -489,8 +496,14 @@ export default function InboxPage() {
           {open.map((t) => (
             <li key={t.id} className="space-y-2 px-4 py-3">
               <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="font-medium">{t.title}</p>
+                <div className="min-w-0 flex-1">
+                  <TaskTitle
+                    taskId={t.id}
+                    title={t.title}
+                    className="font-medium"
+                    onRenamed={(next) => applyRename(t.id, next)}
+                    onError={setError}
+                  />
                   <p className="text-xs text-muted">
                     {t.recurrenceRule
                       ? `${t.recurrenceRule.mode} · every ${t.recurrenceRule.interval} ${t.recurrenceRule.frequency}`

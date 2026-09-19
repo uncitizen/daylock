@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
+import { TaskTitle } from "@/components/TaskTitle";
 import {
   clientApi,
   type FlexTask,
@@ -102,6 +103,29 @@ export default function MyDayPage() {
     (t) => !timeline.some((x) => x.type === "flex" && x.id === t.id),
   );
 
+  function applyRename(taskId: string, nextTitle: string) {
+    setTimeline((prev) =>
+      prev.map((item) => {
+        if (item.type === "occurrence" && item.taskId === taskId) {
+          return { ...item, title: nextTitle };
+        }
+        if (item.type === "flex" && item.id === taskId) {
+          return { ...item, title: nextTitle };
+        }
+        return item;
+      }),
+    );
+    setSuggestions((prev) =>
+      prev.map((s) => ({
+        ...s,
+        tasks: s.tasks.map((t) => (t.id === taskId ? { ...t, title: nextTitle } : t)),
+      })),
+    );
+    setFlexAvailable((prev) =>
+      prev.map((t) => (t.id === taskId ? { ...t, title: nextTitle } : t)),
+    );
+  }
+
   function modeLabel(mode: string) {
     if (mode === "habit") return "Habit";
     if (mode === "rolling") return "Rolling due";
@@ -195,7 +219,7 @@ export default function MyDayPage() {
                   }`}
                 >
                   <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
+                    <div className="min-w-0 flex-1">
                       <p className="text-xs font-semibold uppercase tracking-wide">
                         {modeLabel(item.mode)}
                         {item.hard ? " · hard" : " · soft"}
@@ -203,7 +227,15 @@ export default function MyDayPage() {
                           ? ` · due since ${format(new Date(item.dueSince), "MMM d")}`
                           : ""}
                       </p>
-                      <h2 className="font-semibold">{item.title}</h2>
+                      <h2 className="font-semibold">
+                        <TaskTitle
+                          taskId={item.taskId}
+                          title={item.title}
+                          className="font-semibold"
+                          onRenamed={(next) => applyRename(item.taskId, next)}
+                          onError={setError}
+                        />
+                      </h2>
                       <p className="text-sm text-muted">
                         {item.scheduledStart
                           ? `${timeLabel(item.scheduledStart)}${
@@ -297,11 +329,19 @@ export default function MyDayPage() {
                 className="border-l-4 border-line bg-paper-2/80 px-4 py-3"
               >
                 <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
+                  <div className="min-w-0 flex-1">
                     <p className="text-xs font-semibold uppercase tracking-wide text-muted">
                       From Inbox
                     </p>
-                    <h2 className="font-semibold">{item.title}</h2>
+                    <h2 className="font-semibold">
+                      <TaskTitle
+                        taskId={item.id}
+                        title={item.title}
+                        className="font-semibold"
+                        onRenamed={(next) => applyRename(item.id, next)}
+                        onError={setError}
+                      />
+                    </h2>
                   </div>
                   <div className="flex gap-2">
                     <button
@@ -341,7 +381,14 @@ export default function MyDayPage() {
                 <ul className="mt-2 space-y-2">
                   {s.tasks.map((t) => (
                     <li key={t.id} className="flex items-center justify-between gap-2">
-                      <span>{t.title}</span>
+                      <div className="min-w-0 flex-1">
+                        <TaskTitle
+                          taskId={t.id}
+                          title={t.title}
+                          onRenamed={(next) => applyRename(t.id, next)}
+                          onError={setError}
+                        />
+                      </div>
                       <button
                         type="button"
                         className="rounded border border-accent px-2 py-1 text-sm text-accent"
@@ -369,10 +416,17 @@ export default function MyDayPage() {
                 key={t.id}
                 className="flex items-center justify-between gap-2 border-b border-line/60 py-2"
               >
-                <span>{t.title}</span>
+                <div className="min-w-0 flex-1">
+                  <TaskTitle
+                    taskId={t.id}
+                    title={t.title}
+                    onRenamed={(next) => applyRename(t.id, next)}
+                    onError={setError}
+                  />
+                </div>
                 <button
                   type="button"
-                  className="text-sm font-medium text-accent"
+                  className="shrink-0 text-sm font-medium text-accent"
                   onClick={() => pinFlex(t.id, true)}
                 >
                   Pin
