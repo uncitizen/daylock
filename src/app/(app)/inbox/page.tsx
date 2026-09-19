@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { addMinutes, format } from "date-fns";
 import { TaskTitle } from "@/components/TaskTitle";
+import { TrashButton } from "@/components/TrashButton";
 import { clientApi, type Task, type TaskAnalysis } from "@/lib/client-api";
 
 type RecurrenceMode = "habit" | "rolling" | "fixed";
@@ -542,9 +543,9 @@ export default function InboxPage() {
                       : ""}
                   </p>
                 </div>
-                <div className="flex shrink-0 gap-2">
+                <div className="flex shrink-0 items-center">
                   {!t.recurrenceRule && (
-                    <>
+                    <div className="flex gap-2 pr-1">
                       <button
                         type="button"
                         className="text-sm text-locked"
@@ -564,15 +565,15 @@ export default function InboxPage() {
                       >
                         Done
                       </button>
-                    </>
+                    </div>
                   )}
-                  <button
-                    type="button"
-                    className="text-sm text-danger"
-                    onClick={() => trashTask(t.id)}
+                  <div
+                    className={
+                      t.recurrenceRule ? undefined : "ml-1 border-l border-line pl-0.5"
+                    }
                   >
-                    Trash
-                  </button>
+                    <TrashButton onClick={() => trashTask(t.id)} />
+                  </div>
                 </div>
               </div>
 

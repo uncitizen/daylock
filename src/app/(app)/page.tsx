@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
 import { TaskTitle } from "@/components/TaskTitle";
+import { TrashButton } from "@/components/TrashButton";
 import {
   clientApi,
   type FlexTask,
@@ -255,7 +256,7 @@ export default function MyDayPage() {
                         {item.status !== "pending" ? ` · ${item.status}` : ""}
                       </p>
                     </div>
-                    <div className="flex flex-wrap gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <button
                         type="button"
                         className="rounded bg-ink px-3 py-1.5 text-sm text-paper"
@@ -274,13 +275,9 @@ export default function MyDayPage() {
                           Skip…
                         </button>
                       )}
-                      <button
-                        type="button"
-                        className="rounded border border-danger/40 px-3 py-1.5 text-sm text-danger"
-                        onClick={() => trashTask(item.taskId)}
-                      >
-                        Trash
-                      </button>
+                      <div className="border-l border-line pl-0.5">
+                        <TrashButton onClick={() => trashTask(item.taskId)} />
+                      </div>
                     </div>
                   </div>
 
@@ -360,7 +357,7 @@ export default function MyDayPage() {
                       />
                     </h2>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex items-center gap-2">
                     <button
                       type="button"
                       className="rounded bg-ink px-3 py-1.5 text-sm text-paper"
@@ -375,13 +372,9 @@ export default function MyDayPage() {
                     >
                       Unpin
                     </button>
-                    <button
-                      type="button"
-                      className="rounded border border-danger/40 px-3 py-1.5 text-sm text-danger"
-                      onClick={() => trashTask(item.id)}
-                    >
-                      Trash
-                    </button>
+                    <div className="border-l border-line pl-0.5">
+                      <TrashButton onClick={() => trashTask(item.id)} />
+                    </div>
                   </div>
                 </div>
               </article>
