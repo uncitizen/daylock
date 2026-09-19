@@ -1,0 +1,16 @@
+{
+  "name": "Daylock",
+  "short_name": "Daylock",
+  "description": "My Day planner with hard repeats and calendar fill-work",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f3f0e8",
+  "theme_color": "#1a1f1c",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    }
+  ]
+}

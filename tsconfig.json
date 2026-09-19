@@ -19,7 +19,9 @@
       }
     ],
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@server/*": ["./server/*"],
+      "@api-types": ["./packages/api-types/index.ts"]
     }
   },
   "include": [
