@@ -17,6 +17,7 @@ function combineLocal(date: string, time: string) {
 
 export default function InboxPage() {
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [trash, setTrash] = useState<Task[]>([]);
   const [title, setTitle] = useState("");
   const [repeat, setRepeat] = useState(false);
   const [mode, setMode] = useState<RecurrenceMode>("rolling");
@@ -44,8 +45,8 @@ export default function InboxPage() {
   const [syncToCal, setSyncToCal] = useState(true);
   const analyzeSeq = useRef(0);
 
-  async function reload() {
-    setLoading(true);
+  async function reload(quiet = false) {
+    if (!quiet) setLoading(true);
     setError(null);
     try {
       const [data, status] = await Promise.all([
@@ -53,12 +54,13 @@ export default function InboxPage() {
         clientApi.calendarStatus().catch(() => ({ connected: false, canWrite: false })),
       ]);
       setTasks(data.tasks);
+      setTrash(data.trash ?? []);
       setCalendarConnected(status.connected);
       setCalendarCanWrite(status.canWrite);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load");
     } finally {
-      setLoading(false);
+      if (!quiet) setLoading(false);
     }
   }
 
@@ -248,6 +250,26 @@ export default function InboxPage() {
     setTasks((prev) =>
       prev.map((t) => (t.id === taskId ? { ...t, title: nextTitle } : t)),
     );
+  }
+
+  async function trashTask(taskId: string) {
+    setError(null);
+    try {
+      await clientApi.trashTask(taskId);
+      await reload(true);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not trash");
+    }
+  }
+
+  async function restoreTask(taskId: string) {
+    setError(null);
+    try {
+      await clientApi.updateTask(taskId, { archived: false });
+      await reload(true);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not restore");
+    }
   }
 
   const open = tasks.filter((t) => !t.completedAt);
@@ -520,29 +542,38 @@ export default function InboxPage() {
                       : ""}
                   </p>
                 </div>
-                {!t.recurrenceRule && (
-                  <div className="flex shrink-0 gap-2">
-                    <button
-                      type="button"
-                      className="text-sm text-locked"
-                      onClick={() =>
-                        scheduleFor === t.id ? setScheduleFor(null) : openSchedule(t)
-                      }
-                    >
-                      Schedule
-                    </button>
-                    <button
-                      type="button"
-                      className="text-sm text-accent"
-                      onClick={async () => {
-                        await clientApi.completeTask(t.id);
-                        await reload();
-                      }}
-                    >
-                      Done
-                    </button>
-                  </div>
-                )}
+                <div className="flex shrink-0 gap-2">
+                  {!t.recurrenceRule && (
+                    <>
+                      <button
+                        type="button"
+                        className="text-sm text-locked"
+                        onClick={() =>
+                          scheduleFor === t.id ? setScheduleFor(null) : openSchedule(t)
+                        }
+                      >
+                        Schedule
+                      </button>
+                      <button
+                        type="button"
+                        className="text-sm text-accent"
+                        onClick={async () => {
+                          await clientApi.completeTask(t.id);
+                          await reload();
+                        }}
+                      >
+                        Done
+                      </button>
+                    </>
+                  )}
+                  <button
+                    type="button"
+                    className="text-sm text-danger"
+                    onClick={() => trashTask(t.id)}
+                  >
+                    Trash
+                  </button>
+                </div>
               </div>
 
               {scheduleFor === t.id && (
@@ -618,6 +649,26 @@ export default function InboxPage() {
             {done.map((t) => (
               <li key={t.id} className="line-through">
                 {t.title}
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+
+      {trash.length > 0 && (
+        <details className="text-sm text-muted">
+          <summary className="cursor-pointer">Trash ({trash.length})</summary>
+          <ul className="mt-2 space-y-2">
+            {trash.map((t) => (
+              <li key={t.id} className="flex items-center justify-between gap-2">
+                <span>{t.title}</span>
+                <button
+                  type="button"
+                  className="text-sm font-medium text-accent"
+                  onClick={() => restoreTask(t.id)}
+                >
+                  Restore
+                </button>
               </li>
             ))}
           </ul>

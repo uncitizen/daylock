@@ -20,14 +20,17 @@ export const clientApi = {
     ),
   patchMyDay: (body: unknown) =>
     api(`/api/v1/my-day`, { method: "PATCH", body: JSON.stringify(body) }),
-  inbox: () => api<{ inbox: { id: string; name: string }; tasks: Task[] }>("/api/v1/inbox"),
+  inbox: () =>
+    api<{ inbox: { id: string; name: string }; tasks: Task[]; trash: Task[] }>("/api/v1/inbox"),
   createTask: (body: unknown) =>
     api<{ task: Task }>("/api/v1/tasks", { method: "POST", body: JSON.stringify(body) }),
-  updateTask: (id: string, body: { title?: string }) =>
+  updateTask: (id: string, body: { title?: string; archived?: boolean }) =>
     api<{ task: Task }>(`/api/v1/tasks/${id}`, {
       method: "PATCH",
       body: JSON.stringify(body),
     }),
+  trashTask: (id: string) =>
+    api<{ task: Task }>(`/api/v1/tasks/${id}`, { method: "DELETE" }),
   analyzeTask: (title: string, notes?: string) =>
     api<{ analysis: TaskAnalysis }>("/api/v1/tasks/analyze", {
       method: "POST",
@@ -169,6 +172,7 @@ export type Task = {
   attentionCost: string;
   estimatedMinutes?: number | null;
   completedAt?: string | null;
+  archivedAt?: string | null;
   dueAt?: string | null;
   recurrenceRule?: {
     mode: "habit" | "rolling" | "fixed";

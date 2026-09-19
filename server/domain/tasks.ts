@@ -43,12 +43,57 @@ export async function getInboxForUser(userId: string) {
 
 export async function listInboxTasks(userId: string) {
   const inbox = await getInboxForUser(userId);
-  const tasks = await prisma.task.findMany({
-    where: { listId: inbox.id, archivedAt: null },
-    include: { recurrenceRule: true },
-    orderBy: [{ completedAt: "asc" }, { kind: "asc" }, { createdAt: "desc" }],
+  const [tasks, trash] = await Promise.all([
+    prisma.task.findMany({
+      where: { listId: inbox.id, archivedAt: null },
+      include: { recurrenceRule: true },
+      orderBy: [{ completedAt: "asc" }, { kind: "asc" }, { createdAt: "desc" }],
+    }),
+    prisma.task.findMany({
+      where: { listId: inbox.id, archivedAt: { not: null } },
+      include: { recurrenceRule: true },
+      orderBy: { archivedAt: "desc" },
+      take: 50,
+    }),
+  ]);
+  return { inbox, tasks, trash };
+}
+
+/** Soft-delete: archive to trash and drop every My Day pin for this task. */
+export async function trashTask(taskId: string) {
+  const occurrences = await prisma.taskOccurrence.findMany({
+    where: { taskId },
+    select: { id: true },
   });
-  return { inbox, tasks };
+  const occurrenceIds = occurrences.map((o) => o.id);
+
+  const [task] = await prisma.$transaction([
+    prisma.task.update({
+      where: { id: taskId },
+      data: { archivedAt: new Date() },
+      include: { recurrenceRule: true },
+    }),
+    prisma.myDayItem.deleteMany({
+      where: {
+        OR: [
+          { refType: "flex", refId: taskId },
+          ...(occurrenceIds.length > 0
+            ? [{ refType: "occurrence" as const, refId: { in: occurrenceIds } }]
+            : []),
+        ],
+      },
+    }),
+  ]);
+
+  return task;
+}
+
+export async function restoreTask(taskId: string) {
+  return prisma.task.update({
+    where: { id: taskId },
+    data: { archivedAt: null },
+    include: { recurrenceRule: true },
+  });
 }
 
 function resolveRecurrenceMode(
@@ -145,8 +190,12 @@ export async function updateTask(taskId: string, input: UpdateTaskInput) {
   if (input.estimatedMinutes !== undefined) data.estimatedMinutes = input.estimatedMinutes;
   if (input.dueAt !== undefined) data.dueAt = input.dueAt ? new Date(input.dueAt) : null;
   if (input.listId !== undefined) data.list = { connect: { id: input.listId } };
-  if (input.archived === true) data.archivedAt = new Date();
-  if (input.archived === false) data.archivedAt = null;
+  if (input.archived === true) {
+    return trashTask(taskId);
+  }
+  if (input.archived === false) {
+    return restoreTask(taskId);
+  }
   if (input.kind !== undefined) data.kind = input.kind;
 
   if (input.recurrence) {

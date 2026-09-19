@@ -84,6 +84,16 @@ export default function MyDayPage() {
     await reload();
   }
 
+  async function trashTask(taskId: string) {
+    setError(null);
+    try {
+      await clientApi.trashTask(taskId);
+      await reload();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not trash");
+    }
+  }
+
   async function syncCalendar() {
     setSyncMsg(null);
     try {
@@ -264,6 +274,13 @@ export default function MyDayPage() {
                           Skip…
                         </button>
                       )}
+                      <button
+                        type="button"
+                        className="rounded border border-danger/40 px-3 py-1.5 text-sm text-danger"
+                        onClick={() => trashTask(item.taskId)}
+                      >
+                        Trash
+                      </button>
                     </div>
                   </div>
 
@@ -357,6 +374,13 @@ export default function MyDayPage() {
                       onClick={() => pinFlex(item.id, false)}
                     >
                       Unpin
+                    </button>
+                    <button
+                      type="button"
+                      className="rounded border border-danger/40 px-3 py-1.5 text-sm text-danger"
+                      onClick={() => trashTask(item.id)}
+                    >
+                      Trash
                     </button>
                   </div>
                 </div>

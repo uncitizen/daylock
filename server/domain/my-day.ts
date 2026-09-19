@@ -22,7 +22,10 @@ export async function getMyDay(userId: string, date: Date) {
         status: {
           in: [OccurrenceStatus.pending, OccurrenceStatus.snoozed, OccurrenceStatus.missed],
         },
-        task: { list: { workspace: { memberships: { some: { userId } } } } },
+        task: {
+          archivedAt: null,
+          list: { workspace: { memberships: { some: { userId } } } },
+        },
       },
       include: {
         task: { include: { recurrenceRule: true, list: true } },
