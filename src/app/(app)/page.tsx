@@ -53,11 +53,18 @@ export default function MyDayPage() {
   }, [date]);
 
   async function completeOccurrence(taskId: string, occurrenceId: string) {
+    setTimeline((prev) =>
+      prev.filter((item) => !(item.type === "occurrence" && item.id === occurrenceId)),
+    );
     await clientApi.completeTask(taskId, occurrenceId);
     await reload();
   }
 
   async function completeFlex(taskId: string) {
+    setTimeline((prev) =>
+      prev.filter((item) => !(item.type === "flex" && item.id === taskId)),
+    );
+    setFlexAvailable((prev) => prev.filter((t) => t.id !== taskId));
     await clientApi.completeTask(taskId);
     await reload();
   }

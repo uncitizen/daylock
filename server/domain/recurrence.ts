@@ -408,6 +408,9 @@ export async function completeOccurrenceAndAdvance(occurrenceId: string) {
     where: { id: occurrenceId },
     data: { status: "done", completedAt: new Date() },
   });
+  await prisma.myDayItem.deleteMany({
+    where: { refType: "occurrence", refId: occurrenceId },
+  });
 
   const rule = occ.task.recurrenceRule;
   if (rule) {

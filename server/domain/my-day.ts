@@ -90,20 +90,23 @@ export async function getMyDay(userId: string, date: Date) {
     })),
     ...items
       .filter((i) => i.refType === MyDayRefType.flex)
-      .map((i) => {
+      .flatMap((i) => {
         const task = flexCandidates.find((t) => t.id === i.refId);
-        return {
-          type: "flex" as const,
-          id: i.refId,
-          title: task?.title ?? "Task",
-          pinned: i.pinned,
-          sortOrder: i.sortOrder,
-          moveable: true,
-          attentionCost: task?.attentionCost ?? "any",
-          estimatedMinutes: task?.estimatedMinutes ?? null,
-          listName: task?.list.name,
-          priority: task?.priority,
-        };
+        if (!task) return [];
+        return [
+          {
+            type: "flex" as const,
+            id: i.refId,
+            title: task.title,
+            pinned: i.pinned,
+            sortOrder: i.sortOrder,
+            moveable: true,
+            attentionCost: task.attentionCost,
+            estimatedMinutes: task.estimatedMinutes,
+            listName: task.list.name,
+            priority: task.priority,
+          },
+        ];
       }),
   ];
 

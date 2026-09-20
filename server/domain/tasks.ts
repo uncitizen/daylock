@@ -59,33 +59,38 @@ export async function listInboxTasks(userId: string) {
   return { inbox, tasks, trash };
 }
 
-/** Soft-delete: archive to trash and drop every My Day pin for this task. */
-export async function trashTask(taskId: string) {
-  const occurrences = await prisma.taskOccurrence.findMany({
+async function dropMyDayPinsForTask(
+  taskId: string,
+  db: Pick<typeof prisma, "taskOccurrence" | "myDayItem"> = prisma,
+) {
+  const occurrences = await db.taskOccurrence.findMany({
     where: { taskId },
     select: { id: true },
   });
   const occurrenceIds = occurrences.map((o) => o.id);
+  return db.myDayItem.deleteMany({
+    where: {
+      OR: [
+        { refType: "flex", refId: taskId },
+        ...(occurrenceIds.length > 0
+          ? [{ refType: "occurrence" as const, refId: { in: occurrenceIds } }]
+          : []),
+      ],
+    },
+  });
+}
 
-  const [task] = await prisma.$transaction([
-    prisma.task.update({
+/** Soft-delete: archive to trash and drop every My Day pin for this task. */
+export async function trashTask(taskId: string) {
+  return prisma.$transaction(async (tx) => {
+    const task = await tx.task.update({
       where: { id: taskId },
       data: { archivedAt: new Date() },
       include: { recurrenceRule: true },
-    }),
-    prisma.myDayItem.deleteMany({
-      where: {
-        OR: [
-          { refType: "flex", refId: taskId },
-          ...(occurrenceIds.length > 0
-            ? [{ refType: "occurrence" as const, refId: { in: occurrenceIds } }]
-            : []),
-        ],
-      },
-    }),
-  ]);
-
-  return task;
+    });
+    await dropMyDayPinsForTask(taskId, tx);
+    return task;
+  });
 }
 
 export async function restoreTask(taskId: string) {
@@ -235,9 +240,13 @@ export async function updateTask(taskId: string, input: UpdateTaskInput) {
 }
 
 export async function completeFlexTask(taskId: string) {
-  return prisma.task.update({
-    where: { id: taskId },
-    data: { completedAt: new Date() },
+  return prisma.$transaction(async (tx) => {
+    const task = await tx.task.update({
+      where: { id: taskId },
+      data: { completedAt: new Date() },
+    });
+    await dropMyDayPinsForTask(taskId, tx);
+    return task;
   });
 }
 
