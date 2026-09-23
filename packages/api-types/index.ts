@@ -42,12 +42,16 @@ export const CreateTaskSchema = z.object({
   estimatedMinutes: z.number().int().positive().max(24 * 60).optional().nullable(),
   dueAt: z.string().datetime().optional().nullable(),
   recurrence: RecurrenceInputSchema.optional(),
+  pinToMyDay: z.boolean().optional(),
+  pinDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
 });
 
-export const UpdateTaskSchema = CreateTaskSchema.partial().omit({ listId: true }).extend({
-  listId: z.string().min(1).optional(),
-  archived: z.boolean().optional(),
-});
+export const UpdateTaskSchema = CreateTaskSchema.partial()
+  .omit({ listId: true, pinToMyDay: true, pinDate: true })
+  .extend({
+    listId: z.string().min(1).optional(),
+    archived: z.boolean().optional(),
+  });
 
 export const CompleteTaskSchema = z.object({
   occurrenceId: z.string().optional(),

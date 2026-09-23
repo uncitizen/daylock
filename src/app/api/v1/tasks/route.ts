@@ -1,7 +1,9 @@
 import { requireUser, jsonOk, jsonError } from "@/lib/api";
 import { CreateTaskSchema } from "@api-types";
 import { createTask, getInboxForUser } from "@server/domain/tasks";
+import { patchMyDay } from "@server/domain/my-day";
 import { prisma } from "@server/db/client";
+import { format } from "date-fns";
 
 export async function GET(req: Request) {
   const authResult = await requireUser();
@@ -61,6 +63,14 @@ export async function POST(req: Request) {
   });
   if (!list) return jsonError("List not found", 404);
 
-  const task = await createTask({ ...parsed.data, listId });
+  const { pinToMyDay, pinDate, ...taskInput } = parsed.data;
+
+  const task = await createTask({ ...taskInput, listId });
+  if (pinToMyDay) {
+    await patchMyDay(authResult.userId, {
+      date: pinDate ?? format(new Date(), "yyyy-MM-dd"),
+      pin: { refType: "flex", refId: task.id, pinned: true },
+    });
+  }
   return jsonOk({ task }, 201);
 }

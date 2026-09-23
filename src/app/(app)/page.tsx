@@ -32,9 +32,11 @@ export default function MyDayPage() {
   const [loading, setLoading] = useState(true);
   const [syncMsg, setSyncMsg] = useState<string | null>(null);
   const [skipFor, setSkipFor] = useState<string | null>(null);
+  const [newTitle, setNewTitle] = useState("");
+  const [adding, setAdding] = useState(false);
 
-  async function reload() {
-    setLoading(true);
+  async function reload(quiet = false) {
+    if (!quiet) setLoading(true);
     setError(null);
     try {
       const data = await clientApi.myDay(date);
@@ -44,7 +46,7 @@ export default function MyDayPage() {
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load");
     } finally {
-      setLoading(false);
+      if (!quiet) setLoading(false);
     }
   }
 
@@ -89,7 +91,29 @@ export default function MyDayPage() {
       date,
       pin: { refType: "flex", refId: taskId, pinned },
     });
-    await reload();
+    await reload(true);
+  }
+
+  async function addToMyDay(e: React.FormEvent) {
+    e.preventDefault();
+    const title = newTitle.trim();
+    if (!title || adding) return;
+    setAdding(true);
+    setError(null);
+    try {
+      await clientApi.createTask({
+        title,
+        kind: "flex",
+        pinToMyDay: true,
+        pinDate: date,
+      });
+      setNewTitle("");
+      await reload(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not add");
+    } finally {
+      setAdding(false);
+    }
   }
 
   async function trashTask(taskId: string) {
@@ -170,6 +194,30 @@ export default function MyDayPage() {
         </button>
       </div>
 
+      <form
+        onSubmit={addToMyDay}
+        className="flex flex-wrap items-stretch gap-2 border border-line bg-paper/70 p-3"
+      >
+        <input
+          className="min-w-0 flex-1 rounded border border-line bg-paper px-3 py-2"
+          placeholder="Add to My Day…"
+          value={newTitle}
+          maxLength={500}
+          enterKeyHint="done"
+          autoComplete="off"
+          disabled={adding}
+          onChange={(e) => setNewTitle(e.target.value)}
+          required
+        />
+        <button
+          type="submit"
+          disabled={adding || !newTitle.trim()}
+          className="rounded bg-ink px-4 py-2 text-sm text-paper disabled:opacity-50"
+        >
+          Add
+        </button>
+      </form>
+
       {error && (
         <p className="rounded border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
           {error}
@@ -183,7 +231,7 @@ export default function MyDayPage() {
         <section className="space-y-3">
           {timeline.length === 0 && (
             <p className="text-muted">
-              Empty day. Pin from Inbox, or wait for today’s habits / dues.
+              Empty day. Add above, pin from Inbox, or wait for today’s habits / dues.
             </p>
           )}
           {timeline.map((item) => {
