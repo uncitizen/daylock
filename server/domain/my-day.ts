@@ -1,5 +1,5 @@
 import { AttentionMode, MyDayRefType, OccurrenceStatus } from "@prisma/client";
-import { endOfDay, startOfDay } from "date-fns";
+import { addDays, endOfDay, startOfDay } from "date-fns";
 import type { MyDayPatchInput } from "../../packages/api-types";
 import { prisma } from "../db/client";
 import { materializeAllActiveRules } from "./recurrence";
@@ -11,7 +11,7 @@ export async function getMyDay(userId: string, date: Date) {
   // Ensure current open chips exist before reading
   await materializeAllActiveRules();
 
-  const [items, occurrences, calendarEvents, flexCandidates] = await Promise.all([
+  const [items, occurrences, calendarEvents, recentFlex, scheduledFlex] = await Promise.all([
     prisma.myDayItem.findMany({
       where: { userId, date: dayStart },
       orderBy: [{ pinned: "desc" }, { sortOrder: "asc" }],
@@ -50,7 +50,27 @@ export async function getMyDay(userId: string, date: Date) {
       orderBy: { createdAt: "desc" },
       take: 50,
     }),
+    // Flex tasks scheduled around this day, so they show even when older than
+    // the newest 50. Padded a day each side; the client decides what is "today"
+    // in the viewer's time zone.
+    prisma.task.findMany({
+      where: {
+        kind: "flex",
+        completedAt: null,
+        archivedAt: null,
+        dueAt: { gte: addDays(dayStart, -1), lte: addDays(dayEnd, 1) },
+        list: { workspace: { memberships: { some: { userId } } } },
+      },
+      include: { list: true },
+      orderBy: { dueAt: "asc" },
+    }),
   ]);
+
+  const recentIds = new Set(recentFlex.map((t) => t.id));
+  const flexCandidates = [
+    ...recentFlex,
+    ...scheduledFlex.filter((t) => !recentIds.has(t.id)),
+  ];
 
   // At most one missed chip per template (latest only already via single-open rule)
   const pinnedKeys = new Set(items.map((i) => `${i.refType}:${i.refId}`));
@@ -105,6 +125,7 @@ export async function getMyDay(userId: string, date: Date) {
             estimatedMinutes: task.estimatedMinutes,
             listName: task.list.name,
             priority: task.priority,
+            dueAt: task.dueAt,
           },
         ];
       }),
@@ -145,6 +166,7 @@ export async function getMyDay(userId: string, date: Date) {
           title: t.title,
           estimatedMinutes: t.estimatedMinutes,
           attentionCost: t.attentionCost,
+          dueAt: t.dueAt,
         })),
       };
     });
