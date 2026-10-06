@@ -140,6 +140,7 @@ export type TimelineItem =
       estimatedMinutes?: number | null;
       listName?: string;
       priority?: string;
+      dueAt?: string | null;
     };
 
 export type Suggestion = {
@@ -152,6 +153,7 @@ export type Suggestion = {
     title: string;
     estimatedMinutes?: number | null;
     attentionCost: string;
+    dueAt?: string | null;
   }[];
 };
 
@@ -160,6 +162,7 @@ export type FlexTask = {
   title: string;
   attentionCost: string;
   estimatedMinutes?: number | null;
+  dueAt?: string | null;
   list: { name: string };
 };
 

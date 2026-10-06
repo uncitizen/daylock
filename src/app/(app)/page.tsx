@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { format } from "date-fns";
+import { format, isBefore, isToday, isTomorrow, startOfDay } from "date-fns";
 import { TaskTitle } from "@/components/TaskTitle";
 import { TrashButton } from "@/components/TrashButton";
 import {
@@ -14,6 +14,41 @@ import {
 function timeLabel(iso?: string | null) {
   if (!iso) return null;
   return format(new Date(iso), "h:mm a");
+}
+
+// All-day tasks are stored at local midnight (see Inbox), so a midnight dueAt
+// is shown as a date with no time.
+function isAllDay(d: Date) {
+  return d.getHours() === 0 && d.getMinutes() === 0;
+}
+
+function isScheduledToday(dueAt?: string | null) {
+  return Boolean(dueAt && isToday(new Date(dueAt)));
+}
+
+function ScheduledDate({ dueAt }: { dueAt?: string | null }) {
+  if (!dueAt) return null;
+  const d = new Date(dueAt);
+  const time = isAllDay(d) ? "" : ` ${format(d, "h:mm a")}`;
+  let label: string;
+  let tone = "text-muted";
+  if (isToday(d)) {
+    label = `Today${time}`;
+    tone = "text-accent";
+  } else if (isTomorrow(d)) {
+    label = `Tomorrow${time}`;
+  } else {
+    label = `${format(d, "MMM d")}${time}`;
+    if (isBefore(d, startOfDay(new Date()))) {
+      label = `Overdue · ${label}`;
+      tone = "text-danger";
+    }
+  }
+  return (
+    <span className={`text-xs font-medium ${tone}`} title={format(d, "PPPp")}>
+      Scheduled {label}
+    </span>
+  );
 }
 
 const HABIT_REASONS = [
@@ -144,6 +179,10 @@ export default function MyDayPage() {
   const unpinnedFlex = flexAvailable.filter(
     (t) => !timeline.some((x) => x.type === "flex" && x.id === t.id),
   );
+  const plannedToday = unpinnedFlex
+    .filter((t) => isScheduledToday(t.dueAt))
+    .sort((a, b) => new Date(a.dueAt!).getTime() - new Date(b.dueAt!).getTime());
+  const inboxFlex = unpinnedFlex.filter((t) => !isScheduledToday(t.dueAt));
 
   function applyRename(taskId: string, nextTitle: string) {
     setTimeline((prev) =>
@@ -411,6 +450,7 @@ export default function MyDayPage() {
                         onError={setError}
                       />
                     </h2>
+                    <ScheduledDate dueAt={item.dueAt} />
                   </div>
                   <div className="flex items-center gap-2">
                     <button
@@ -438,6 +478,51 @@ export default function MyDayPage() {
         </section>
       )}
 
+      {!loading && plannedToday.length > 0 && (
+        <section className="space-y-3">
+          <h2 className="font-[family-name:var(--font-display)] text-xl font-semibold">
+            Planned for today
+          </h2>
+          <ul className="space-y-2">
+            {plannedToday.map((t) => (
+              <li
+                key={t.id}
+                className="flex items-center justify-between gap-2 border-l-4 border-accent bg-accent-soft/40 px-4 py-2"
+              >
+                <div className="min-w-0 flex-1">
+                  <TaskTitle
+                    taskId={t.id}
+                    title={t.title}
+                    className="font-medium"
+                    onRenamed={(next) => applyRename(t.id, next)}
+                    onError={setError}
+                  />
+                  <div>
+                    <ScheduledDate dueAt={t.dueAt} />
+                  </div>
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  <button
+                    type="button"
+                    className="rounded bg-ink px-3 py-1.5 text-sm text-paper"
+                    onClick={() => completeFlex(t.id)}
+                  >
+                    Done
+                  </button>
+                  <button
+                    type="button"
+                    className="rounded border border-accent px-3 py-1.5 text-sm text-accent"
+                    onClick={() => pinFlex(t.id, true)}
+                  >
+                    Pin
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
       {suggestions.some((s) => s.tasks.length > 0) && (
         <section className="space-y-3">
           <h2 className="font-[family-name:var(--font-display)] text-xl font-semibold">
@@ -460,6 +545,9 @@ export default function MyDayPage() {
                           onRenamed={(next) => applyRename(t.id, next)}
                           onError={setError}
                         />
+                        <div>
+                          <ScheduledDate dueAt={t.dueAt} />
+                        </div>
                       </div>
                       <button
                         type="button"
@@ -477,13 +565,13 @@ export default function MyDayPage() {
         </section>
       )}
 
-      {unpinnedFlex.length > 0 && (
+      {inboxFlex.length > 0 && (
         <section className="space-y-3">
           <h2 className="font-[family-name:var(--font-display)] text-xl font-semibold">
             From Inbox
           </h2>
           <ul className="space-y-2">
-            {unpinnedFlex.slice(0, 12).map((t) => (
+            {inboxFlex.slice(0, 12).map((t) => (
               <li
                 key={t.id}
                 className="flex items-center justify-between gap-2 border-b border-line/60 py-2"
@@ -495,6 +583,9 @@ export default function MyDayPage() {
                     onRenamed={(next) => applyRename(t.id, next)}
                     onError={setError}
                   />
+                  <div>
+                    <ScheduledDate dueAt={t.dueAt} />
+                  </div>
                 </div>
                 <button
                   type="button"
