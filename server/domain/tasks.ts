@@ -49,8 +49,9 @@ export async function listInboxTasks(userId: string) {
       include: { recurrenceRule: true },
       orderBy: [{ completedAt: "asc" }, { kind: "asc" }, { createdAt: "desc" }],
     }),
+    // Trash covers every list in the workspace, so tasks trashed from a stream stay recoverable.
     prisma.task.findMany({
-      where: { listId: inbox.id, archivedAt: { not: null } },
+      where: { list: { workspaceId: inbox.workspaceId }, archivedAt: { not: null } },
       include: { recurrenceRule: true },
       orderBy: { archivedAt: "desc" },
       take: 50,
@@ -165,6 +166,7 @@ export async function createTask(input: CreateTaskInput & { listId: string }) {
   const task = await prisma.task.create({
     data: {
       listId: input.listId,
+      goalId: input.goalId ?? null,
       title: input.title,
       notes: input.notes ?? null,
       priority: input.priority ?? "none",
@@ -195,6 +197,13 @@ export async function updateTask(taskId: string, input: UpdateTaskInput) {
   if (input.estimatedMinutes !== undefined) data.estimatedMinutes = input.estimatedMinutes;
   if (input.dueAt !== undefined) data.dueAt = input.dueAt ? new Date(input.dueAt) : null;
   if (input.listId !== undefined) data.list = { connect: { id: input.listId } };
+  if (input.goalId !== undefined) {
+    data.goal = input.goalId ? { connect: { id: input.goalId } } : { disconnect: true };
+  } else if (input.listId !== undefined) {
+    // A goal belongs to one stream; moving the task elsewhere drops it.
+    data.goal = { disconnect: true };
+  }
+  if (input.sortOrder !== undefined) data.sortOrder = input.sortOrder;
   if (input.archived === true) {
     return trashTask(taskId);
   }

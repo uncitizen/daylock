@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { format, isBefore, isToday, isTomorrow, startOfDay } from "date-fns";
 import { TaskTitle } from "@/components/TaskTitle";
 import { TrashButton } from "@/components/TrashButton";
+import { StreamDots, StreamTag, type StreamOption } from "@/components/StreamDots";
 import {
   clientApi,
   type FlexTask,
@@ -69,6 +70,8 @@ export default function MyDayPage() {
   const [skipFor, setSkipFor] = useState<string | null>(null);
   const [newTitle, setNewTitle] = useState("");
   const [adding, setAdding] = useState(false);
+  const [streams, setStreams] = useState<StreamOption[]>([]);
+  const [streamPickFor, setStreamPickFor] = useState<string | null>(null);
 
   async function reload(quiet = false) {
     if (!quiet) setLoading(true);
@@ -78,6 +81,9 @@ export default function MyDayPage() {
       setTimeline(data.timeline);
       setSuggestions(data.suggestions);
       setFlexAvailable(data.flexAvailable);
+      setStreams(
+        data.streams.map((st) => ({ id: st.id, name: st.name, color: st.color ?? "#5c635c" })),
+      );
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load");
     } finally {
@@ -127,6 +133,69 @@ export default function MyDayPage() {
       pin: { refType: "flex", refId: taskId, pinned },
     });
     await reload(true);
+  }
+
+  async function moveToStream(taskId: string, listId: string) {
+    setStreamPickFor(null);
+    setError(null);
+    try {
+      await clientApi.updateTask(taskId, { listId });
+      await reload(true);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not move");
+    }
+  }
+
+  async function swapSuggestion(taskId: string) {
+    setError(null);
+    setSyncMsg(null);
+    try {
+      const { picks } = await clientApi.pickForToday({ date, swapTaskId: taskId });
+      if (picks.length === 0) setSyncMsg("Nothing else in that stream to swap in.");
+      await reload(true);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not swap");
+    }
+  }
+
+  /** Stream label on a card; tapping it opens the dots to file the task elsewhere. */
+  function streamLabel(item: {
+    taskId: string;
+    listId: string;
+    listName?: string;
+    isInbox: boolean;
+    streamColor: string | null;
+  }) {
+    if (streams.length === 0) return null;
+    return (
+      <button
+        type="button"
+        onClick={() => setStreamPickFor(streamPickFor === item.taskId ? null : item.taskId)}
+        className="mr-1 rounded hover:bg-line/40"
+        title={item.isInbox ? "File under a stream" : "Move to another stream"}
+      >
+        {item.isInbox ? (
+          <span className="inline-flex items-center gap-1 text-muted">
+            <span className="h-2 w-2 rounded-full border border-muted" aria-hidden />
+            Unsorted
+          </span>
+        ) : (
+          <StreamTag name={item.listName ?? "Stream"} color={item.streamColor ?? "#5c635c"} />
+        )}
+      </button>
+    );
+  }
+
+  function streamPicker(taskId: string, listId: string) {
+    if (streamPickFor !== taskId) return null;
+    return (
+      <StreamDots
+        className="mt-2"
+        streams={streams}
+        currentId={listId}
+        onPick={(id) => (id === listId ? setStreamPickFor(null) : moveToStream(taskId, id))}
+      />
+    );
   }
 
   async function addToMyDay(e: React.FormEvent) {
@@ -183,6 +252,14 @@ export default function MyDayPage() {
     .filter((t) => isScheduledToday(t.dueAt))
     .sort((a, b) => new Date(a.dueAt!).getTime() - new Date(b.dueAt!).getTime());
   const inboxFlex = unpinnedFlex.filter((t) => !isScheduledToday(t.dueAt));
+
+  const planStreams = timeline.flatMap((item) =>
+    item.type === "calendar" ? [] : [item.isInbox ? null : item.streamColor],
+  );
+  const planSegments = streams
+    .map((st) => ({ ...st, count: planStreams.filter((c) => c === st.color).length }))
+    .filter((st) => st.count > 0);
+  const unsortedCount = planStreams.filter((c) => c === null).length;
 
   function applyRename(taskId: string, nextTitle: string) {
     setTimeline((prev) =>
@@ -257,6 +334,34 @@ export default function MyDayPage() {
         </button>
       </form>
 
+      {planSegments.length > 0 && (
+        <div className="space-y-1" aria-label="Streams in today’s plan">
+          <div className="flex h-2 overflow-hidden rounded">
+            {planSegments.map((st) => (
+              <div
+                key={st.id}
+                title={`${st.name}: ${st.count}`}
+                style={{ flexGrow: st.count, backgroundColor: st.color }}
+              />
+            ))}
+            {unsortedCount > 0 && (
+              <div title={`Unsorted: ${unsortedCount}`} className="bg-line" style={{ flexGrow: unsortedCount }} />
+            )}
+          </div>
+          <p className="text-xs text-muted">
+            Today serves {planSegments.map((st) => st.name).join(", ")}
+            {streams.length > planSegments.length && (
+              <>
+                {" · "}
+                <a href="/streams" className="text-locked">
+                  balance on Streams →
+                </a>
+              </>
+            )}
+          </p>
+        </div>
+      )}
+
       {error && (
         <p className="rounded border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
           {error}
@@ -326,6 +431,7 @@ export default function MyDayPage() {
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="min-w-0 flex-1">
                       <p className="text-xs font-semibold uppercase tracking-wide">
+                        {streamLabel(item)}
                         {modeLabel(item.mode)}
                         {item.hard ? " · hard" : " · soft"}
                         {item.dueSince
@@ -349,6 +455,7 @@ export default function MyDayPage() {
                           : "Today"}
                         {item.status !== "pending" ? ` · ${item.status}` : ""}
                       </p>
+                      {streamPicker(item.taskId, item.listId)}
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
                       <button
@@ -431,15 +538,26 @@ export default function MyDayPage() {
               );
             }
 
+            const suggested = item.source === "suggested";
             return (
               <article
                 key={`flex-${item.id}`}
-                className="border-l-4 border-line bg-paper-2/80 px-4 py-3"
+                className={`border-l-4 px-4 py-3 ${
+                  suggested ? "border-dashed bg-paper/70" : "border-line bg-paper-2/80"
+                }`}
+                style={
+                  !item.isInbox && item.streamColor
+                    ? { borderLeftColor: item.streamColor }
+                    : undefined
+                }
               >
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
                     <p className="text-xs font-semibold uppercase tracking-wide text-muted">
-                      From Inbox
+                      {streams.length > 0
+                        ? streamLabel({ ...item, taskId: item.id })
+                        : "From Inbox"}
+                      {suggested && " · Suggested"}
                     </p>
                     <h2 className="font-semibold">
                       <TaskTitle
@@ -451,22 +569,51 @@ export default function MyDayPage() {
                       />
                     </h2>
                     <ScheduledDate dueAt={item.dueAt} />
+                    {streamPicker(item.id, item.listId)}
                   </div>
                   <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      className="rounded bg-ink px-3 py-1.5 text-sm text-paper"
-                      onClick={() => completeFlex(item.id)}
-                    >
-                      Done
-                    </button>
-                    <button
-                      type="button"
-                      className="rounded border border-line px-3 py-1.5 text-sm"
-                      onClick={() => pinFlex(item.id, false)}
-                    >
-                      Unpin
-                    </button>
+                    {suggested ? (
+                      <>
+                        <button
+                          type="button"
+                          className="rounded bg-ink px-3 py-1.5 text-sm text-paper"
+                          onClick={() => pinFlex(item.id, true)}
+                        >
+                          Keep
+                        </button>
+                        <button
+                          type="button"
+                          className="rounded border border-line px-3 py-1.5 text-sm"
+                          onClick={() => swapSuggestion(item.id)}
+                        >
+                          Swap
+                        </button>
+                        <button
+                          type="button"
+                          className="rounded px-2 py-1.5 text-sm text-muted hover:text-ink"
+                          onClick={() => pinFlex(item.id, false)}
+                        >
+                          Not today
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <button
+                          type="button"
+                          className="rounded bg-ink px-3 py-1.5 text-sm text-paper"
+                          onClick={() => completeFlex(item.id)}
+                        >
+                          Done
+                        </button>
+                        <button
+                          type="button"
+                          className="rounded border border-line px-3 py-1.5 text-sm"
+                          onClick={() => pinFlex(item.id, false)}
+                        >
+                          Unpin
+                        </button>
+                      </>
+                    )}
                     <div className="border-l border-line pl-0.5">
                       <TrashButton onClick={() => trashTask(item.id)} />
                     </div>
@@ -568,7 +715,7 @@ export default function MyDayPage() {
       {inboxFlex.length > 0 && (
         <section className="space-y-3">
           <h2 className="font-[family-name:var(--font-display)] text-xl font-semibold">
-            From Inbox
+            {streams.length > 0 ? "Not planned yet" : "From Inbox"}
           </h2>
           <ul className="space-y-2">
             {inboxFlex.slice(0, 12).map((t) => (
@@ -583,7 +730,10 @@ export default function MyDayPage() {
                     onRenamed={(next) => applyRename(t.id, next)}
                     onError={setError}
                   />
-                  <div>
+                  <div className="flex flex-wrap items-center gap-2 text-xs">
+                    {!t.list.isInbox && t.list.color && (
+                      <StreamTag name={t.list.name} color={t.list.color} />
+                    )}
                     <ScheduledDate dueAt={t.dueAt} />
                   </div>
                 </div>

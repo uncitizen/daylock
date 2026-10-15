@@ -52,18 +52,21 @@ body {
   background-attachment: fixed;
 }
 
-a {
-  color: inherit;
-  text-decoration: none;
-}
+/* In a layer so Tailwind utilities (text-paper on the active tab, etc.) win. */
+@layer base {
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
 
-button {
-  font: inherit;
-  cursor: pointer;
-}
+  button {
+    font: inherit;
+    cursor: pointer;
+  }
 
-input,
-select,
-textarea {
-  font: inherit;
+  input,
+  select,
+  textarea {
+    font: inherit;
+  }
 }

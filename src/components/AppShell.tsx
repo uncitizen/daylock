@@ -5,8 +5,9 @@ import { usePathname } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
 
 const links = [
-  { href: "/", label: "My Day" },
-  { href: "/inbox", label: "Inbox" },
+  { href: "/", label: "My Day", match: ["/"] },
+  // The Inbox is a lane on Streams; its full page lives under the same tab.
+  { href: "/streams", label: "Streams", match: ["/streams", "/inbox"] },
 ];
 
 export function AppShell({ children }: { children: React.ReactNode }) {
@@ -20,7 +21,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <p className="font-[family-name:var(--font-display)] text-3xl font-semibold tracking-tight text-ink">
             Daylock
           </p>
-          <p className="mt-1 text-sm text-muted">My Day + Inbox. That’s it.</p>
+          <p className="mt-1 text-sm text-muted">My Day for today. Streams for everything else.</p>
         </div>
         <div className="flex items-center gap-3 text-sm text-muted">
           <span className="hidden sm:inline">{data?.user?.email}</span>
@@ -36,7 +37,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
       <nav className="mb-6 flex gap-1">
         {links.map((l) => {
-          const active = pathname === l.href;
+          const active = l.match.includes(pathname);
           return (
             <Link
               key={l.href}

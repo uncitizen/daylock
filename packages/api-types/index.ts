@@ -34,6 +34,7 @@ export const RecurrenceInputSchema = z.object({
 
 export const CreateTaskSchema = z.object({
   listId: z.string().min(1).optional(),
+  goalId: z.string().min(1).optional(),
   title: z.string().min(1).max(500),
   notes: z.string().max(10000).optional().nullable(),
   priority: TaskPrioritySchema.optional(),
@@ -50,8 +51,45 @@ export const UpdateTaskSchema = CreateTaskSchema.partial()
   .omit({ listId: true, pinToMyDay: true, pinDate: true })
   .extend({
     listId: z.string().min(1).optional(),
+    goalId: z.string().min(1).nullable().optional(),
+    sortOrder: z.number().int().optional(),
     archived: z.boolean().optional(),
   });
+
+const StreamColorSchema = z.string().regex(/^#[0-9a-fA-F]{6}$/);
+
+export const CreateStreamSchema = z.union([
+  z.object({ presets: z.literal(true) }),
+  z.object({
+    name: z.string().trim().min(1).max(60),
+    color: StreamColorSchema.optional(),
+    weight: z.number().int().min(0).max(100).optional(),
+  }),
+]);
+
+export const UpdateStreamSchema = z.object({
+  name: z.string().trim().min(1).max(60).optional(),
+  color: StreamColorSchema.optional(),
+  weight: z.number().int().min(0).max(100).optional(),
+  sortOrder: z.number().int().optional(),
+  archived: z.literal(true).optional(),
+});
+
+export const CreateGoalSchema = z.object({
+  listId: z.string().min(1),
+  title: z.string().trim().min(1).max(200),
+});
+
+export const UpdateGoalSchema = z.object({
+  title: z.string().trim().min(1).max(200).optional(),
+  archived: z.literal(true).optional(),
+});
+
+export const PickForTodaySchema = z.object({
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  count: z.number().int().min(1).max(5).optional(),
+  swapTaskId: z.string().min(1).optional(),
+});
 
 export const CompleteTaskSchema = z.object({
   occurrenceId: z.string().optional(),

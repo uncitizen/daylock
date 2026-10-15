@@ -1,6 +1,7 @@
 import { requireUser, jsonOk, jsonError } from "@/lib/api";
 import { UpdateTaskSchema } from "@api-types";
 import { getTaskForUser, trashTask, updateTask } from "@server/domain/tasks";
+import { findGoalForUser, findListForUser } from "@server/domain/streams";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -23,6 +24,15 @@ export async function PATCH(req: Request, ctx: Ctx) {
   const body = await req.json();
   const parsed = UpdateTaskSchema.safeParse(body);
   if (!parsed.success) return jsonError(parsed.error.message);
+
+  const targetListId = parsed.data.listId ?? existing.listId;
+  if (parsed.data.listId && !(await findListForUser(parsed.data.listId, authResult.userId))) {
+    return jsonError("List not found", 404);
+  }
+  if (parsed.data.goalId) {
+    const goal = await findGoalForUser(parsed.data.goalId, authResult.userId);
+    if (!goal || goal.listId !== targetListId) return jsonError("Goal not found", 404);
+  }
 
   const task = await updateTask(id, parsed.data);
   return jsonOk({ task });
