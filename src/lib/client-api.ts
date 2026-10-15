@@ -15,16 +15,28 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const clientApi = {
   myDay: (date: string) =>
-    api<{ timeline: TimelineItem[]; suggestions: Suggestion[]; flexAvailable: FlexTask[] }>(
-      `/api/v1/my-day?date=${date}`,
-    ),
+    api<{
+      timeline: TimelineItem[];
+      suggestions: Suggestion[];
+      flexAvailable: FlexTask[];
+      streams: { id: string; name: string; color: string | null }[];
+    }>(`/api/v1/my-day?date=${date}`),
   patchMyDay: (body: unknown) =>
     api(`/api/v1/my-day`, { method: "PATCH", body: JSON.stringify(body) }),
   inbox: () =>
     api<{ inbox: { id: string; name: string }; tasks: Task[]; trash: Task[] }>("/api/v1/inbox"),
   createTask: (body: unknown) =>
     api<{ task: Task }>("/api/v1/tasks", { method: "POST", body: JSON.stringify(body) }),
-  updateTask: (id: string, body: { title?: string; archived?: boolean }) =>
+  updateTask: (
+    id: string,
+    body: {
+      title?: string;
+      archived?: boolean;
+      listId?: string;
+      goalId?: string | null;
+      sortOrder?: number;
+    },
+  ) =>
     api<{ task: Task }>(`/api/v1/tasks/${id}`, {
       method: "PATCH",
       body: JSON.stringify(body),
@@ -79,6 +91,22 @@ export const clientApi = {
       method: "PATCH",
       body: JSON.stringify({ attentionMode }),
     }),
+  streams: (date: string) => api<StreamsBoard>(`/api/v1/streams?date=${date}`),
+  createStream: (body: { name: string; color?: string; weight?: number } | { presets: true }) =>
+    api("/api/v1/streams", { method: "POST", body: JSON.stringify(body) }),
+  updateStream: (
+    id: string,
+    body: { name?: string; color?: string; weight?: number; archived?: true },
+  ) => api(`/api/v1/streams/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
+  pickForToday: (body: { date: string; count?: number; swapTaskId?: string }) =>
+    api<{ picks: StreamPick[] }>("/api/v1/streams/pick", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  createGoal: (listId: string, title: string) =>
+    api("/api/v1/goals", { method: "POST", body: JSON.stringify({ listId, title }) }),
+  updateGoal: (id: string, body: { title?: string; archived?: true }) =>
+    api(`/api/v1/goals/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
   syncCalendar: () =>
     api<{ synced: number; error?: string | null }>("/api/v1/sync/google-calendar", {
       method: "POST",
@@ -124,6 +152,9 @@ export type TimelineItem =
       attentionCost: string;
       estimatedMinutes?: number | null;
       listName: string;
+      listId: string;
+      streamColor: string | null;
+      isInbox: boolean;
       mode: "habit" | "rolling" | "fixed";
       dueSince?: string | null;
       frequency?: string;
@@ -139,6 +170,10 @@ export type TimelineItem =
       attentionCost: string;
       estimatedMinutes?: number | null;
       listName?: string;
+      listId: string;
+      streamColor: string | null;
+      isInbox: boolean;
+      source: "manual" | "suggested";
       priority?: string;
       dueAt?: string | null;
     };
@@ -163,7 +198,7 @@ export type FlexTask = {
   attentionCost: string;
   estimatedMinutes?: number | null;
   dueAt?: string | null;
-  list: { name: string };
+  list: { id: string; name: string; color: string | null; isInbox: boolean };
 };
 
 export type Task = {
@@ -189,4 +224,51 @@ export type Task = {
     activeMonths: number[];
     nextDueAt?: string | null;
   } | null;
+};
+
+export type StreamTask = {
+  id: string;
+  title: string;
+  goalId: string | null;
+  sortOrder: number;
+  kind: string;
+  estimatedMinutes?: number | null;
+  dueAt?: string | null;
+  repeatMode: "habit" | "rolling" | "fixed" | null;
+  pinnedToday: boolean;
+  createdAt: string;
+};
+
+export type StreamCard = {
+  id: string;
+  name: string;
+  color: string;
+  weight: number;
+  sortOrder: number;
+  targetPct: number;
+  actualPct: number;
+  actualMinutes: number;
+  daysQuiet: number;
+  lastActivityAt: string | null;
+  pressure: number;
+  status: "needs_you" | "drifting" | "on_track";
+  goals: { id: string; title: string; sortOrder: number }[];
+  tasks: StreamTask[];
+};
+
+export type StreamsBoard = {
+  date: string;
+  windowDays: number;
+  totalMinutes: number;
+  inbox: { id: string; name: string; tasks: StreamTask[] };
+  streams: StreamCard[];
+  colors: string[];
+};
+
+export type StreamPick = {
+  taskId: string;
+  title: string;
+  streamId: string;
+  streamName: string;
+  reason: string;
 };

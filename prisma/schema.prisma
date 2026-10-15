@@ -20,13 +20,13 @@ model User {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
-  accounts              Account[]
-  sessions              Session[]
-  memberships           Membership[]
-  myDayItems            MyDayItem[]
-  calendarEvents        CalendarEventCache[]
-  pushSubscriptions     PushSubscription[]
-  googleCalendarTokens  GoogleCalendarToken?
+  accounts             Account[]
+  sessions             Session[]
+  memberships          Membership[]
+  myDayItems           MyDayItem[]
+  calendarEvents       CalendarEventCache[]
+  pushSubscriptions    PushSubscription[]
+  googleCalendarTokens GoogleCalendarToken?
 
   @@map("users")
 }
@@ -112,19 +112,40 @@ model Membership {
 // ─── Lists & Tasks ────────────────────────────────────────────
 
 model List {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   workspaceId String
   name        String
-  isInbox     Boolean  @default(false)
-  sortOrder   Int      @default(0)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  isInbox     Boolean   @default(false)
+  sortOrder   Int       @default(0)
+  // Streams: non-inbox lists are life streams with a color and an importance weight
+  color       String?
+  weight      Int       @default(20)
+  archivedAt  DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   tasks     Task[]
+  goals     Goal[]
 
   @@index([workspaceId])
   @@map("lists")
+}
+
+model Goal {
+  id         String    @id @default(cuid())
+  listId     String
+  title      String
+  sortOrder  Int       @default(0)
+  archivedAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  list  List   @relation(fields: [listId], references: [id], onDelete: Cascade)
+  tasks Task[]
+
+  @@index([listId])
+  @@map("goals")
 }
 
 enum TaskKind {
@@ -146,25 +167,29 @@ enum TaskPriority {
 }
 
 model Task {
-  id                String         @id @default(cuid())
-  listId            String
-  title             String
-  notes             String?        @db.Text
-  priority          TaskPriority   @default(none)
-  kind              TaskKind       @default(flex)
-  attentionCost     AttentionCost  @default(any)
-  estimatedMinutes  Int?
-  dueAt             DateTime?
-  completedAt       DateTime?
-  archivedAt        DateTime?
-  createdAt         DateTime       @default(now())
-  updatedAt         DateTime       @updatedAt
+  id               String        @id @default(cuid())
+  listId           String
+  goalId           String?
+  sortOrder        Int           @default(0)
+  title            String
+  notes            String?       @db.Text
+  priority         TaskPriority  @default(none)
+  kind             TaskKind      @default(flex)
+  attentionCost    AttentionCost @default(any)
+  estimatedMinutes Int?
+  dueAt            DateTime?
+  completedAt      DateTime?
+  archivedAt       DateTime?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
 
-  list           List            @relation(fields: [listId], references: [id], onDelete: Cascade)
+  list           List             @relation(fields: [listId], references: [id], onDelete: Cascade)
+  goal           Goal?            @relation(fields: [goalId], references: [id], onDelete: SetNull)
   recurrenceRule RecurrenceRule?
   occurrences    TaskOccurrence[]
 
   @@index([listId])
+  @@index([goalId])
   @@map("tasks")
 }
 
@@ -185,14 +210,14 @@ model RecurrenceRule {
   taskId       String         @unique
   mode         RecurrenceMode @default(rolling)
   // Structured recurrence (not full RRULE parity)
-  frequency    String         // daily | weekly | monthly
+  frequency    String // daily | weekly | monthly
   interval     Int            @default(1)
-  byWeekday    Int[]          // 0=Sun .. 6=Sat for weekly
+  byWeekday    Int[] // 0=Sun .. 6=Sat for weekly
   skippable    Boolean        @default(true)
   alarmPolicy  AlarmPolicy    @default(none)
   // Optional daily window "do between HH:MM" (local time strings)
-  windowStart  String?        // "08:00"
-  windowEnd    String?        // "10:00"
+  windowStart  String? // "08:00"
+  windowEnd    String? // "10:00"
   // Rolling/habit: single source of truth for the open chip
   nextDueAt    DateTime?
   // Seasonal: empty = all year (1=Jan .. 12=Dec)
@@ -250,6 +275,11 @@ enum MyDayRefType {
   calendar
 }
 
+enum MyDaySource {
+  manual
+  suggested
+}
+
 model MyDayItem {
   id        String       @id @default(cuid())
   userId    String
@@ -258,6 +288,7 @@ model MyDayItem {
   refId     String
   sortOrder Int          @default(0)
   pinned    Boolean      @default(false)
+  source    MyDaySource  @default(manual)
   createdAt DateTime     @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -276,21 +307,21 @@ enum AttentionMode {
 }
 
 model CalendarEventCache {
-  id             String        @id @default(cuid())
-  userId         String
-  googleEventId  String
-  calendarId     String        @default("primary")
-  title          String
-  location       String?
-  description    String?       @db.Text
-  start          DateTime
-  end            DateTime
-  allDay         Boolean       @default(false)
-  attentionMode  AttentionMode @default(full)
-  moveable       Boolean       @default(false)
-  syncedAt       DateTime      @default(now())
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
+  id            String        @id @default(cuid())
+  userId        String
+  googleEventId String
+  calendarId    String        @default("primary")
+  title         String
+  location      String?
+  description   String?       @db.Text
+  start         DateTime
+  end           DateTime
+  allDay        Boolean       @default(false)
+  attentionMode AttentionMode @default(full)
+  moveable      Boolean       @default(false)
+  syncedAt      DateTime      @default(now())
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -300,14 +331,14 @@ model CalendarEventCache {
 }
 
 model GoogleCalendarToken {
-  id           String   @id @default(cuid())
-  userId       String   @unique
-  accessToken  String   @db.Text
-  refreshToken String?  @db.Text
+  id           String    @id @default(cuid())
+  userId       String    @unique
+  accessToken  String    @db.Text
+  refreshToken String?   @db.Text
   expiresAt    DateTime?
   scope        String?
-  updatedAt    DateTime @updatedAt
-  createdAt    DateTime @default(now())
+  updatedAt    DateTime  @updatedAt
+  createdAt    DateTime  @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 

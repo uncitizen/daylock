@@ -1,8 +1,22 @@
-import { AttentionMode, MyDayRefType, OccurrenceStatus } from "@prisma/client";
+import {
+  AttentionMode,
+  MyDayRefType,
+  MyDaySource,
+  OccurrenceStatus,
+  type List,
+} from "@prisma/client";
 import { addDays, endOfDay, startOfDay } from "date-fns";
 import type { MyDayPatchInput } from "../../packages/api-types";
 import { prisma } from "../db/client";
 import { materializeAllActiveRules } from "./recurrence";
+
+function streamInfo(list: List) {
+  return {
+    listId: list.id,
+    streamColor: list.isInbox ? null : list.color,
+    isInbox: list.isInbox,
+  };
+}
 
 export async function getMyDay(userId: string, date: Date) {
   const dayStart = startOfDay(date);
@@ -71,6 +85,24 @@ export async function getMyDay(userId: string, date: Date) {
     ...recentFlex,
     ...scheduledFlex.filter((t) => !recentIds.has(t.id)),
   ];
+  // Pinned tasks can be older than the newest 50 (e.g. picked from a stream backlog).
+  const candidateIds = new Set(flexCandidates.map((t) => t.id));
+  const missingPinnedIds = items
+    .filter((i) => i.refType === MyDayRefType.flex && !candidateIds.has(i.refId))
+    .map((i) => i.refId);
+  if (missingPinnedIds.length > 0) {
+    flexCandidates.push(
+      ...(await prisma.task.findMany({
+        where: {
+          id: { in: missingPinnedIds },
+          completedAt: null,
+          archivedAt: null,
+          list: { workspace: { memberships: { some: { userId } } } },
+        },
+        include: { list: true },
+      })),
+    );
+  }
 
   // At most one missed chip per template (latest only already via single-open rule)
   const pinnedKeys = new Set(items.map((i) => `${i.refType}:${i.refId}`));
@@ -103,6 +135,7 @@ export async function getMyDay(userId: string, date: Date) {
       attentionCost: occ.task.attentionCost,
       estimatedMinutes: occ.task.estimatedMinutes,
       listName: occ.task.list.name,
+      ...streamInfo(occ.task.list),
       mode: occ.task.recurrenceRule?.mode ?? "rolling",
       dueSince: occ.dueSince,
       frequency: occ.task.recurrenceRule?.frequency,
@@ -124,6 +157,8 @@ export async function getMyDay(userId: string, date: Date) {
             attentionCost: task.attentionCost,
             estimatedMinutes: task.estimatedMinutes,
             listName: task.list.name,
+            ...streamInfo(task.list),
+            source: i.source,
             priority: task.priority,
             dueAt: task.dueAt,
           },
@@ -171,12 +206,23 @@ export async function getMyDay(userId: string, date: Date) {
       };
     });
 
+  const streams = await prisma.list.findMany({
+    where: {
+      isInbox: false,
+      archivedAt: null,
+      workspace: { type: "personal", memberships: { some: { userId } } },
+    },
+    select: { id: true, name: true, color: true },
+    orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+  });
+
   return {
     date: dayStart,
     items,
     timeline,
     suggestions,
     flexAvailable: flexCandidates,
+    streams,
   };
 }
 
@@ -206,7 +252,8 @@ export async function patchMyDay(userId: string, input: MyDayPatchInput) {
           pinned: true,
           sortOrder: (max._max.sortOrder ?? 0) + 1,
         },
-        update: { pinned: true },
+        // Pinning a suggestion by hand keeps it.
+        update: { pinned: true, source: MyDaySource.manual },
       });
     } else {
       await prisma.myDayItem.deleteMany({
