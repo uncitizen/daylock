@@ -27,6 +27,7 @@ export const clientApi = {
     api<{ inbox: { id: string; name: string }; tasks: Task[]; trash: Task[] }>("/api/v1/inbox"),
   createTask: (body: unknown) =>
     api<{ task: Task }>("/api/v1/tasks", { method: "POST", body: JSON.stringify(body) }),
+  getTask: (id: string) => api<{ task: Task & { listId: string; goalId: string | null } }>(`/api/v1/tasks/${id}`),
   updateTask: (
     id: string,
     body: {
@@ -35,6 +36,9 @@ export const clientApi = {
       listId?: string;
       goalId?: string | null;
       sortOrder?: number;
+      estimatedMinutes?: number | null;
+      dueAt?: string | null;
+      recurrence?: RecurrenceInput | null;
     },
   ) =>
     api<{ task: Task }>(`/api/v1/tasks/${id}`, {
@@ -98,6 +102,7 @@ export const clientApi = {
     id: string,
     body: { name?: string; color?: string; weight?: number; archived?: true },
   ) => api(`/api/v1/streams/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
+  streamOptions: () => api<StreamOptions>("/api/v1/streams?options=1"),
   pickForToday: (body: { date: string; count?: number; swapTaskId?: string }) =>
     api<{ picks: StreamPick[] }>("/api/v1/streams/pick", {
       method: "POST",
@@ -271,4 +276,21 @@ export type StreamPick = {
   streamId: string;
   streamName: string;
   reason: string;
+};
+
+export type RecurrenceInput = {
+  mode: "habit" | "rolling" | "fixed";
+  frequency: "daily" | "weekly" | "monthly";
+  interval: number;
+  byWeekday: number[];
+  skippable: boolean;
+  alarmPolicy: "none" | "gentle" | "panic";
+  windowStart?: string | null;
+  windowEnd?: string | null;
+  activeMonths: number[];
+};
+
+export type StreamOptions = {
+  inboxId: string;
+  streams: { id: string; name: string; color: string; goals: { id: string; title: string }[] }[];
 };

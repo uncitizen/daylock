@@ -3,6 +3,7 @@ import { CreateStreamSchema } from "@api-types";
 import {
   createPresetStreams,
   createStream,
+  getStreamOptions,
   getStreamsBoard,
 } from "@server/domain/streams";
 
@@ -11,6 +12,16 @@ export async function GET(req: Request) {
   if ("error" in authResult) return authResult.error;
 
   const url = new URL(req.url);
+  if (url.searchParams.get("options") === "1") {
+    try {
+      return jsonOk(await getStreamOptions(authResult.userId));
+    } catch (e) {
+      if (e instanceof Error && (e.message === "INBOX_MISSING" || e.message === "WORKSPACE_MISSING")) {
+        return jsonError("Workspace not found", 404);
+      }
+      throw e;
+    }
+  }
   const dateStr = url.searchParams.get("date");
   const date = dateStr ? new Date(dateStr + "T00:00:00") : new Date();
   if (Number.isNaN(date.getTime())) return jsonError("Invalid date");

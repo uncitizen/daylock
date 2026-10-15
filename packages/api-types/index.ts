@@ -53,6 +53,8 @@ export const UpdateTaskSchema = CreateTaskSchema.partial()
     listId: z.string().min(1).optional(),
     goalId: z.string().min(1).nullable().optional(),
     sortOrder: z.number().int().optional(),
+    /** null stops the task repeating; it becomes a one-off task. */
+    recurrence: RecurrenceInputSchema.nullable().optional(),
     archived: z.boolean().optional(),
   });
 

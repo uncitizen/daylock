@@ -112,21 +112,24 @@ function resolveRecurrenceMode(
   return "rolling";
 }
 
-function recurrenceCreateData(input: NonNullable<CreateTaskInput["recurrence"]>) {
+function recurrenceCreateData(
+  input: NonNullable<CreateTaskInput["recurrence"]>,
+  opts: { from?: Date; createdAt?: Date } = {},
+) {
   const mode = resolveRecurrenceMode(input);
   const skippable = mode === "habit" ? true : (input.skippable ?? true);
   const alarmPolicy =
     mode === "habit"
       ? AlarmPolicy.none
       : (input.alarmPolicy ?? AlarmPolicy.none);
-  const today = startOfDay(new Date());
+  const today = opts.from ?? startOfDay(new Date());
 
   const pseudoRule = {
     frequency: input.frequency,
     interval: input.interval ?? 1,
     byWeekday: input.byWeekday ?? [],
     mode,
-    createdAt: new Date(),
+    createdAt: opts.createdAt ?? new Date(),
     id: "",
     taskId: "",
     skippable,
@@ -212,9 +215,34 @@ export async function updateTask(taskId: string, input: UpdateTaskInput) {
   }
   if (input.kind !== undefined) data.kind = input.kind;
 
+  if (input.recurrence === null) {
+    return stopRepeating(taskId, data);
+  }
+
   if (input.recurrence) {
     data.kind = TaskKind.template;
-    const rec = recurrenceCreateData(input.recurrence);
+    const existingRule = await prisma.recurrenceRule.findUnique({ where: { taskId } });
+    // Don't reopen today's occurrence if it's already done or skipped.
+    const today = startOfDay(new Date());
+    const closedToday = await prisma.taskOccurrence.findFirst({
+      where: {
+        taskId,
+        date: today,
+        status: { in: [OccurrenceStatus.done, OccurrenceStatus.skipped] },
+      },
+    });
+    const from = closedToday ? addDays(today, 1) : today;
+    const rec = recurrenceCreateData(input.recurrence, {
+      from,
+      createdAt: existingRule?.createdAt,
+    });
+    // Editing an "every N days after done" task keeps its current due date.
+    if (rec.mode === "rolling") {
+      rec.nextDueAt =
+        existingRule?.mode === "rolling" && existingRule.nextDueAt
+          ? existingRule.nextDueAt
+          : from;
+    }
     data.recurrenceRule = {
       upsert: {
         create: rec,
@@ -242,10 +270,44 @@ export async function updateTask(taskId: string, input: UpdateTaskInput) {
   });
 
   if (input.recurrence) {
+    // Open chips were made for the old schedule; rebuild from the new one.
+    await prisma.taskOccurrence.updateMany({
+      where: {
+        taskId,
+        status: { in: [OccurrenceStatus.pending, OccurrenceStatus.snoozed] },
+      },
+      data: { status: OccurrenceStatus.expired },
+    });
     await materializeOccurrencesForTask(taskId);
   }
 
   return task;
+}
+
+/** Turn a repeating task back into a one-off task. History stays; open chips close. */
+async function stopRepeating(taskId: string, data: Prisma.TaskUpdateInput) {
+  return prisma.$transaction(async (tx) => {
+    await tx.taskOccurrence.updateMany({
+      where: {
+        taskId,
+        status: { in: [OccurrenceStatus.pending, OccurrenceStatus.snoozed] },
+      },
+      data: { status: OccurrenceStatus.expired },
+    });
+    const open = await tx.taskOccurrence.findMany({
+      where: { taskId, status: OccurrenceStatus.expired },
+      select: { id: true },
+    });
+    await tx.myDayItem.deleteMany({
+      where: { refType: "occurrence", refId: { in: open.map((o) => o.id) } },
+    });
+    await tx.recurrenceRule.deleteMany({ where: { taskId } });
+    return tx.task.update({
+      where: { id: taskId },
+      data: { ...data, kind: TaskKind.flex },
+      include: { recurrenceRule: true },
+    });
+  });
 }
 
 export async function completeFlexTask(taskId: string) {

@@ -513,3 +513,31 @@ export function pickReason(stream: {
   }
   return parts.join(" · ") || "next in line";
 }
+
+/** Inbox plus streams and their goals, for pickers in the task editor. */
+export async function getStreamOptions(userId: string) {
+  const workspaceId = await getPersonalWorkspaceId(userId);
+  const lists = await prisma.list.findMany({
+    where: { workspaceId, archivedAt: null },
+    select: {
+      id: true,
+      name: true,
+      color: true,
+      isInbox: true,
+      goals: {
+        where: { archivedAt: null },
+        select: { id: true, title: true },
+        orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+      },
+    },
+    orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+  });
+  const inbox = lists.find((l) => l.isInbox);
+  if (!inbox) throw new Error("INBOX_MISSING");
+  return {
+    inboxId: inbox.id,
+    streams: lists
+      .filter((l) => !l.isInbox)
+      .map((l) => ({ id: l.id, name: l.name, color: l.color ?? STREAM_COLORS[0], goals: l.goals })),
+  };
+}

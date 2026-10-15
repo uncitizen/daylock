@@ -61,6 +61,10 @@ export function advanceFromNow(rule: RecurrenceRule, from = new Date()): Date {
     if (rule.mode === "habit") {
       return nextMatchingDate(rule, addDays(base, 1));
     }
+    if (rule.mode === "fixed") {
+      // Next chosen weekday (e.g. Wed after Sat), skipping interval-1 weeks first.
+      return nextMatchingDate(rule, addDays(addWeeks(base, rule.interval - 1), 1));
+    }
     return addWeeks(base, rule.interval);
   }
   if (rule.frequency === "monthly") return addMonths(base, rule.interval);
