@@ -6,6 +6,7 @@ import { format } from "date-fns";
 import { TaskTitle } from "@/components/TaskTitle";
 import { TrashButton } from "@/components/TrashButton";
 import { StreamDots, guessStream, type StreamOption } from "@/components/StreamDots";
+import { TaskEditor } from "@/components/TaskEditor";
 import {
   clientApi,
   type StreamCard,
@@ -24,6 +25,29 @@ const COLLAPSED_TASKS = 3;
 
 function pct(n: number) {
   return `${Math.round(n)}%`;
+}
+
+type Creating = { key: string; listId?: string; goalId?: string | null; title?: string };
+
+function EditButton({ onClick, active }: { onClick: () => void; active: boolean }) {
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick();
+      }}
+      aria-label={active ? "Close editor" : "Edit task"}
+      aria-expanded={active}
+      title="Edit: stream, goal, date, repeat"
+      className="flex h-7 w-7 shrink-0 items-center justify-center rounded text-muted hover:bg-line/40 hover:text-ink"
+    >
+      <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+        <path d="M4 20h4L19 9l-4-4L4 16v4z" />
+        <path d="M13.5 6.5l4 4" />
+      </svg>
+    </button>
+  );
 }
 
 function taskMeta(t: StreamTask) {
@@ -45,6 +69,8 @@ export default function StreamsPage() {
   const [selected, setSelected] = useState(0);
   const [capture, setCapture] = useState("");
   const [newStream, setNewStream] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [creating, setCreating] = useState<Creating | null>(null);
   const weightTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
   const reload = useCallback(
@@ -321,7 +347,7 @@ export default function StreamsPage() {
             </span>
           </h2>
           <Link href="/inbox" className="text-sm text-locked">
-            Repeats, dates and trash →
+            Trash and full Inbox →
           </Link>
         </div>
         <form onSubmit={addCapture} className="flex gap-2">
@@ -340,7 +366,26 @@ export default function StreamsPage() {
           >
             Add
           </button>
+          <button
+            type="button"
+            onClick={() => setCreating({ key: "inbox", title: capture })}
+            className="rounded border border-line px-3 py-2 text-sm"
+            title="Stream, goal, date or repeat"
+          >
+            More…
+          </button>
         </form>
+        {creating?.key === "inbox" && (
+          <TaskEditor
+            mode={{ kind: "create", title: creating.title }}
+            onCancel={() => setCreating(null)}
+            onDone={() => {
+              setCreating(null);
+              setCapture("");
+              void reload(true);
+            }}
+          />
+        )}
         {inboxTasks.length > 0 && (
           <ul className="divide-y divide-line/60">
             {inboxTasks.map((t, i) => {
@@ -368,6 +413,22 @@ export default function StreamsPage() {
                     showKeys={isSel}
                     onPick={(id) => moveTo(t.id, id)}
                   />
+                  <EditButton
+                    active={editingId === t.id}
+                    onClick={() => setEditingId(editingId === t.id ? null : t.id)}
+                  />
+                  {editingId === t.id && (
+                    <div className="basis-full" onClick={(e) => e.stopPropagation()}>
+                      <TaskEditor
+                        mode={{ kind: "edit", taskId: t.id }}
+                        onCancel={() => setEditingId(null)}
+                        onDone={() => {
+                          setEditingId(null);
+                          void reload(true);
+                        }}
+                      />
+                    </div>
+                  )}
                 </li>
               );
             })}
@@ -416,6 +477,11 @@ export default function StreamsPage() {
               setWeight={(w) => setWeight(s, w)}
               onRenamed={applyRename}
               onError={setError}
+              editingId={editingId}
+              setEditingId={setEditingId}
+              creating={creating?.key === s.id ? creating : null}
+              setCreating={setCreating}
+              reload={() => reload(true)}
             />
           ))}
         </section>
@@ -461,6 +527,11 @@ type LaneProps = {
   setWeight: (weight: number) => void;
   onRenamed: (taskId: string, title: string) => void;
   onError: (msg: string | null) => void;
+  editingId: string | null;
+  setEditingId: (id: string | null) => void;
+  creating: Creating | null;
+  setCreating: (c: Creating | null) => void;
+  reload: () => Promise<void>;
 };
 
 function StreamLane({
@@ -478,6 +549,11 @@ function StreamLane({
   setWeight,
   onRenamed,
   onError,
+  editingId,
+  setEditingId,
+  creating,
+  setCreating,
+  reload,
 }: LaneProps) {
   const [newTask, setNewTask] = useState("");
   const [newTaskGoal, setNewTaskGoal] = useState("");
@@ -592,6 +668,22 @@ function StreamLane({
             </button>
           )}
           <TrashButton onClick={() => run(() => clientApi.trashTask(t.id), "Could not trash")} />
+        </div>
+      )}
+      <EditButton
+        active={editingId === t.id}
+        onClick={() => setEditingId(editingId === t.id ? null : t.id)}
+      />
+      {editingId === t.id && (
+        <div className="basis-full">
+          <TaskEditor
+            mode={{ kind: "edit", taskId: t.id }}
+            onCancel={() => setEditingId(null)}
+            onDone={() => {
+              setEditingId(null);
+              void reload();
+            }}
+          />
         </div>
       )}
     </li>
@@ -710,7 +802,26 @@ function StreamLane({
             <button type="submit" disabled={!newTask.trim()} className="rounded bg-ink px-3 py-1.5 text-sm text-paper disabled:opacity-50">
               Add
             </button>
+            <button
+              type="button"
+              onClick={() => setCreating({ key: s.id, listId: s.id, goalId: newTaskGoal || null, title: newTask })}
+              className="rounded border border-line px-3 py-1.5 text-sm"
+              title="Date or repeat"
+            >
+              More…
+            </button>
           </form>
+          {creating && (
+            <TaskEditor
+              mode={{ kind: "create", listId: creating.listId, goalId: creating.goalId, title: creating.title }}
+              onCancel={() => setCreating(null)}
+              onDone={() => {
+                setCreating(null);
+                setNewTask("");
+                void reload();
+              }}
+            />
+          )}
 
           <form onSubmit={addGoal} className="flex gap-2">
             <input

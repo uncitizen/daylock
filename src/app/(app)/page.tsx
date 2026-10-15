@@ -5,6 +5,7 @@ import { format, isBefore, isToday, isTomorrow, startOfDay } from "date-fns";
 import { TaskTitle } from "@/components/TaskTitle";
 import { TrashButton } from "@/components/TrashButton";
 import { StreamDots, StreamTag, type StreamOption } from "@/components/StreamDots";
+import { TaskEditor } from "@/components/TaskEditor";
 import {
   clientApi,
   type FlexTask,
@@ -72,6 +73,8 @@ export default function MyDayPage() {
   const [adding, setAdding] = useState(false);
   const [streams, setStreams] = useState<StreamOption[]>([]);
   const [streamPickFor, setStreamPickFor] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [composerMore, setComposerMore] = useState(false);
 
   async function reload(quiet = false) {
     if (!quiet) setLoading(true);
@@ -183,6 +186,41 @@ export default function MyDayPage() {
           <StreamTag name={item.listName ?? "Stream"} color={item.streamColor ?? "#5c635c"} />
         )}
       </button>
+    );
+  }
+
+  function editButton(taskId: string) {
+    const active = editingId === taskId;
+    return (
+      <button
+        type="button"
+        onClick={() => setEditingId(active ? null : taskId)}
+        aria-label={active ? "Close editor" : "Edit task"}
+        aria-expanded={active}
+        title="Edit: stream, goal, date, repeat"
+        className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded text-muted hover:bg-line/40 hover:text-ink"
+      >
+        <svg viewBox="0 0 24 24" className="h-[18px] w-[18px]" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <path d="M4 20h4L19 9l-4-4L4 16v4z" />
+          <path d="M13.5 6.5l4 4" />
+        </svg>
+      </button>
+    );
+  }
+
+  function editor(taskId: string) {
+    if (editingId !== taskId) return null;
+    return (
+      <div className="mt-3">
+        <TaskEditor
+          mode={{ kind: "edit", taskId }}
+          onCancel={() => setEditingId(null)}
+          onDone={() => {
+            setEditingId(null);
+            void reload(true);
+          }}
+        />
+      </div>
     );
   }
 
@@ -332,7 +370,26 @@ export default function MyDayPage() {
         >
           Add
         </button>
+        <button
+          type="button"
+          onClick={() => setComposerMore(true)}
+          className="rounded border border-line px-3 py-2 text-sm"
+          title="Stream, goal, date or repeat"
+        >
+          More…
+        </button>
       </form>
+      {composerMore && (
+        <TaskEditor
+          mode={{ kind: "create", title: newTitle, pinDate: date }}
+          onCancel={() => setComposerMore(false)}
+          onDone={() => {
+            setComposerMore(false);
+            setNewTitle("");
+            void reload(true);
+          }}
+        />
+      )}
 
       {planSegments.length > 0 && (
         <div className="space-y-1" aria-label="Streams in today’s plan">
@@ -476,11 +533,13 @@ export default function MyDayPage() {
                           Skip…
                         </button>
                       )}
+                      {editButton(item.taskId)}
                       <div className="border-l border-line pl-0.5">
                         <TrashButton onClick={() => trashTask(item.taskId)} />
                       </div>
                     </div>
                   </div>
+                  {editor(item.taskId)}
 
                   {skipFor === item.id && (
                     <div className="mt-3 space-y-2 border-t border-line/50 pt-3 text-sm">
@@ -614,11 +673,13 @@ export default function MyDayPage() {
                         </button>
                       </>
                     )}
+                    {editButton(item.id)}
                     <div className="border-l border-line pl-0.5">
                       <TrashButton onClick={() => trashTask(item.id)} />
                     </div>
                   </div>
                 </div>
+                {editor(item.id)}
               </article>
             );
           })}
