@@ -8,6 +8,8 @@ const links = [
   { href: "/", label: "My Day", match: ["/"] },
   // The Inbox is a lane on Streams; its full page lives under the same tab.
   { href: "/streams", label: "Streams", match: ["/streams", "/inbox"] },
+  // Kept apart from tasks and streams on purpose.
+  { href: "/shopping", label: "Shopping", match: ["/shopping"] },
 ];
 
 export function AppShell({ children }: { children: React.ReactNode }) {

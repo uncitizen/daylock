@@ -89,8 +89,10 @@ model Workspace {
   createdAt DateTime      @default(now())
   updatedAt DateTime      @updatedAt
 
-  memberships Membership[]
-  lists       List[]
+  memberships    Membership[]
+  lists          List[]
+  shoppingStores ShoppingStore[]
+  shoppingItems  ShoppingItem[]
 
   @@map("workspaces")
 }
@@ -379,4 +381,41 @@ model PushSubscription {
 
   @@index([userId])
   @@map("push_subscriptions")
+}
+
+// ─── Shopping list (separate from tasks and streams) ──────────
+
+model ShoppingStore {
+  id          String    @id @default(cuid())
+  workspaceId String
+  name        String
+  sortOrder   Int       @default(0)
+  archivedAt  DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  workspace Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  items     ShoppingItem[]
+
+  @@index([workspaceId])
+  @@map("shopping_stores")
+}
+
+model ShoppingItem {
+  id          String    @id @default(cuid())
+  workspaceId String
+  storeId     String?
+  name        String
+  checkedAt   DateTime?
+  // Cleared items leave the list but feed "Buy again".
+  clearedAt   DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  workspace Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  store     ShoppingStore? @relation(fields: [storeId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId, clearedAt])
+  @@index([storeId])
+  @@map("shopping_items")
 }
