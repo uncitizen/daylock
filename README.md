@@ -24,6 +24,7 @@ Open [http://localhost:3000](http://localhost:3000) → Dev sign in (or configur
 |--------|---------|
 | **My Day** | Today’s timeline: calendar, repeats, pinned and suggested tasks, tagged by stream |
 | **Streams** | Inbox lane to sort (dots or keys 1–9), stream lanes sorted by pressure, backlog by goal, Pick 3 for today |
+| **Shopping** | One reusable list split by store (Costco, Fortinos…). Tap to check off, clear the cart, re-add from "Buy again". Separate from tasks and streams |
 | **Inbox** (via Streams) | Full capture: repeats, dates, calendar sync, trash |
 
 Capture with `#stream` (e.g. `Book physio #health`) to skip the Inbox.

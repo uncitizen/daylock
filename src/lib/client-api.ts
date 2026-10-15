@@ -294,3 +294,30 @@ export type StreamOptions = {
   inboxId: string;
   streams: { id: string; name: string; color: string; goals: { id: string; title: string }[] }[];
 };
+
+export type ShoppingList = {
+  stores: { id: string; name: string; sortOrder: number }[];
+  items: { id: string; name: string; storeId: string | null; checked: boolean }[];
+  /** Keyed by store id; "" is "Any store". */
+  buyAgain: Record<string, string[]>;
+};
+
+const json = (method: string, body?: unknown): RequestInit => ({
+  method,
+  ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+});
+
+export const shoppingApi = {
+  list: () => api<ShoppingList>("/api/v1/shopping"),
+  addItem: (name: string, storeId: string | null) =>
+    api("/api/v1/shopping/items", json("POST", { name, storeId })),
+  updateItem: (id: string, body: { name?: string; storeId?: string | null; checked?: boolean }) =>
+    api(`/api/v1/shopping/items/${id}`, json("PATCH", body)),
+  deleteItem: (id: string) => api(`/api/v1/shopping/items/${id}`, json("DELETE")),
+  clear: (storeId?: string | null) =>
+    api<{ cleared: number }>("/api/v1/shopping/clear", json("POST", storeId === undefined ? {} : { storeId })),
+  addStore: (body: { name: string } | { presets: true }) =>
+    api("/api/v1/shopping/stores", json("POST", body)),
+  updateStore: (id: string, body: { name?: string; move?: "up" | "down"; archived?: true }) =>
+    api(`/api/v1/shopping/stores/${id}`, json("PATCH", body)),
+};

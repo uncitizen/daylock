@@ -164,3 +164,30 @@ export type CreateTaskInput = z.infer<typeof CreateTaskSchema>;
 export type UpdateTaskInput = z.infer<typeof UpdateTaskSchema>;
 export type MyDayPatchInput = z.infer<typeof MyDayPatchSchema>;
 export type SkipOccurrenceInput = z.infer<typeof SkipOccurrenceSchema>;
+
+export const AddShoppingItemSchema = z.object({
+  name: z.string().trim().min(1).max(200),
+  storeId: z.string().min(1).nullable().default(null),
+});
+
+export const UpdateShoppingItemSchema = z.object({
+  name: z.string().trim().min(1).max(200).optional(),
+  storeId: z.string().min(1).nullable().optional(),
+  checked: z.boolean().optional(),
+});
+
+export const ClearShoppingSchema = z.object({
+  /** Omit to clear every store; null clears "Any store". */
+  storeId: z.string().min(1).nullable().optional(),
+});
+
+export const CreateShoppingStoreSchema = z.union([
+  z.object({ presets: z.literal(true) }),
+  z.object({ name: z.string().trim().min(1).max(60) }),
+]);
+
+export const UpdateShoppingStoreSchema = z.object({
+  name: z.string().trim().min(1).max(60).optional(),
+  move: z.enum(["up", "down"]).optional(),
+  archived: z.literal(true).optional(),
+});
