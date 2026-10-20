@@ -18,6 +18,8 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000) → Dev sign in (or configure Google OAuth).
 
+In production, sign-in is Google-only: dev login is disabled whatever `AUTH_DEV_LOGIN` says, and only addresses in `AUTH_ALLOWED_EMAILS` get in.
+
 ## Surfaces
 
 | Screen | Purpose |

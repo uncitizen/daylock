@@ -1,6 +1,7 @@
 import type { NextAuthConfig } from "next-auth";
 import Google from "next-auth/providers/google";
 import Credentials from "next-auth/providers/credentials";
+import { devLoginEnabled } from "./auth-policy";
 
 const googleConfigured = Boolean(
   process.env.AUTH_GOOGLE_ID && process.env.AUTH_GOOGLE_SECRET,
@@ -33,16 +34,20 @@ export const authConfig: NextAuthConfig = {
           }),
         ]
       : []),
-    Credentials({
-      name: "Dev Login",
-      credentials: {
-        email: { label: "Email", type: "email" },
-        name: { label: "Name", type: "text" },
-      },
-      // Real authorize runs in Node via auth.ts callbacks / route handlers.
-      // Edge middleware only needs the provider registered for type/config.
-      authorize: () => null,
-    }),
+    ...(devLoginEnabled()
+      ? [
+          Credentials({
+            name: "Dev Login",
+            credentials: {
+              email: { label: "Email", type: "email" },
+              name: { label: "Name", type: "text" },
+            },
+            // Real authorize runs in Node via auth.ts callbacks / route handlers.
+            // Edge middleware only needs the provider registered for type/config.
+            authorize: () => null,
+          }),
+        ]
+      : []),
   ],
   pages: {
     signIn: "/login",
