@@ -64,7 +64,21 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     ...authConfig.callbacks,
     async signIn({ user, account, profile }) {
       if (account?.provider === "google") {
-        if (profile?.email_verified !== true || !isEmailAllowed(user.email)) {
+        // Debug: log the profile to see what Google returns
+        console.log("[AUTH] Google sign-in attempt:", {
+          email: user.email,
+          email_verified: profile?.email_verified,
+          email_verified_type: typeof profile?.email_verified,
+        });
+
+        // Accept boolean true or string "true"
+        const emailVerified = profile?.email_verified === true || profile?.email_verified === "true";
+        
+        if (!emailVerified || !isEmailAllowed(user.email)) {
+          console.log("[AUTH] Sign-in rejected:", {
+            email_verified_check: emailVerified,
+            allowlist_check: isEmailAllowed(user.email),
+          });
           return false;
         }
       } else if (!(account?.provider === "credentials" && devLoginEnabled())) {
