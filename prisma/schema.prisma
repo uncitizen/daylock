@@ -71,6 +71,7 @@ model VerificationToken {
   @@map("verification_tokens")
 }
 
+// API keys for MCP server authentication
 model ApiKey {
   id          String    @id @default(cuid())
   userId      String
