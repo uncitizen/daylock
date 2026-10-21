@@ -46,27 +46,45 @@ async function handleMcpRequest(req: NextRequest) {
 
   // Create a minimal Hono context-like object for the transport
   const url = new URL(req.url);
-  const context = {
-    req: {
-      raw: req,
-      method: req.method,
-      url: url.toString(),
-      header: (name: string) => req.headers.get(name),
-      json: () => req.json(),
-    },
-    json: (data: any, status?: number, headers?: Record<string, string>) => {
-      return NextResponse.json(data, { status, headers });
-    },
-    text: (data: string, status?: number, headers?: Record<string, string>) => {
-      return new NextResponse(data, { status, headers });
-    },
-    body: (data: any, init?: ResponseInit) => {
-      return new NextResponse(data, init);
-    },
-  };
+  
+  try {
+    const context = {
+      req: {
+        raw: req,
+        method: req.method,
+        url: url.toString(),
+        header: (name: string) => req.headers.get(name),
+        json: async () => {
+          try {
+            return await req.json();
+          } catch {
+            return {};
+          }
+        },
+      },
+      json: (data: any, status?: number, headers?: Record<string, string>) => {
+        return NextResponse.json(data, { status, headers });
+      },
+      text: (data: string, status?: number, headers?: Record<string, string>) => {
+        return new NextResponse(data, { status, headers });
+      },
+      body: (data: any, init?: ResponseInit) => {
+        return new NextResponse(data, init);
+      },
+      newResponse: (data: any, init?: ResponseInit) => {
+        return new NextResponse(data, init);
+      },
+    };
 
-  // Handle the request through the transport
-  return transport.handleRequest(context as any);
+    // Handle the request through the transport
+    return await transport.handleRequest(context as any);
+  } catch (error) {
+    console.error("MCP request error:", error);
+    return NextResponse.json(
+      { error: "Internal server error", details: String(error) },
+      { status: 500 }
+    );
+  }
 }
 
 export const GET = handleMcpRequest;
