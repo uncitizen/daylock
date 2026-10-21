@@ -1,21 +1,20 @@
-import { Hono } from "hono";
 import { StreamableHTTPTransport } from "@hono/mcp";
 import { createMcpServer } from "@/lib/mcp-server";
 import { auth } from "@/lib/auth";
+import { NextRequest, NextResponse } from "next/server";
 
-const app = new Hono();
-
-// Handle both GET and POST for MCP
-app.all("/", async (c) => {
+async function handleMcpRequest(req: NextRequest) {
   // Get NextAuth session from the request
   const session = await auth();
 
   if (!session?.user?.id) {
-    return c.json(
+    return NextResponse.json(
       { error: "Unauthorized - please sign in" },
-      401,
       {
-        "WWW-Authenticate": 'Bearer realm="MCP Server"',
+        status: 401,
+        headers: {
+          "WWW-Authenticate": 'Bearer realm="MCP Server"',
+        },
       },
     );
   }
@@ -30,15 +29,30 @@ app.all("/", async (c) => {
     await mcpServer.connect(transport);
   }
 
+  // Create a minimal Hono context-like object for the transport
+  const url = new URL(req.url);
+  const context = {
+    req: {
+      raw: req,
+      method: req.method,
+      url: url.toString(),
+      header: (name: string) => req.headers.get(name),
+      json: () => req.json(),
+    },
+    json: (data: any, status?: number, headers?: Record<string, string>) => {
+      return NextResponse.json(data, { status, headers });
+    },
+    text: (data: string, status?: number, headers?: Record<string, string>) => {
+      return new NextResponse(data, { status, headers });
+    },
+    body: (data: any, init?: ResponseInit) => {
+      return new NextResponse(data, init);
+    },
+  };
+
   // Handle the request through the transport
-  return transport.handleRequest(c);
-});
+  return transport.handleRequest(context as any);
+}
 
-// Export Next.js route handlers
-export const GET = async (req: Request) => {
-  return app.fetch(req);
-};
-
-export const POST = async (req: Request) => {
-  return app.fetch(req);
-};
+export const GET = handleMcpRequest;
+export const POST = handleMcpRequest;
