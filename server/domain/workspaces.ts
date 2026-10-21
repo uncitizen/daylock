@@ -1,8 +1,40 @@
 import { MembershipRole, WorkspaceType } from "@prisma/client";
 import { prisma } from "../db/client";
 
-/** Ensure a personal workspace + Inbox exist for a newly signed-in user. */
+/**
+ * Ensure the user can reach a personal workspace + Inbox.
+ *
+ * If AUTH_SHARED_WORKSPACE_ID is set (household mode), every allowlisted
+ * Google user joins that workspace instead of getting an empty solo one.
+ */
 export async function ensurePersonalWorkspace(userId: string, userName?: string | null) {
+  const sharedWorkspaceId = process.env.AUTH_SHARED_WORKSPACE_ID?.trim();
+  if (sharedWorkspaceId) {
+    const shared = await prisma.workspace.findFirst({
+      where: { id: sharedWorkspaceId, type: WorkspaceType.personal },
+      include: { lists: true },
+    });
+    if (!shared) {
+      throw new Error(`AUTH_SHARED_WORKSPACE_ID not found: ${sharedWorkspaceId}`);
+    }
+    await prisma.membership.upsert({
+      where: { workspaceId_userId: { workspaceId: shared.id, userId } },
+      create: { workspaceId: shared.id, userId, role: MembershipRole.owner },
+      update: {},
+    });
+    if (!shared.lists.some((l) => l.isInbox)) {
+      await prisma.list.create({
+        data: {
+          workspaceId: shared.id,
+          name: "Inbox",
+          isInbox: true,
+          sortOrder: 0,
+        },
+      });
+    }
+    return shared.id;
+  }
+
   const existing = await prisma.membership.findFirst({
     where: { userId, workspace: { type: WorkspaceType.personal } },
     include: { workspace: { include: { lists: true } } },
