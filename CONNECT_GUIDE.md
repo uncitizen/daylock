@@ -4,13 +4,13 @@
 
 1. **Sign in to your app**:
    ```
-   http://localhost:3000/login
+   https://daylock-xi.vercel.app/login
    ```
-   Use your Google account or dev credentials
+   Use your Google account
 
 2. **Navigate to API Keys page**:
    ```
-   http://localhost:3000/api-keys
+   https://daylock-xi.vercel.app/api-keys
    ```
 
 3. **Create a key**:
@@ -39,7 +39,7 @@
    - Enter these settings:
      ```
      Name: Daylock Task Manager
-     URL: http://localhost:3000/api/mcp
+     URL: https://daylock-xi.vercel.app/api/mcp
      Transport: HTTP
      ```
 
@@ -87,8 +87,7 @@
          "command": "npx",
          "args": [
            "mcporter",
-           "http://localhost:3000/api/mcp",
-           "--allow-http",
+           "https://daylock-xi.vercel.app/api/mcp",
            "--header",
            "Authorization: Bearer YOUR_API_KEY"
          ]
@@ -96,6 +95,8 @@
      }
    }
    ```
+   
+   Note: No `--allow-http` flag needed since we're using HTTPS!
 
 3. **Replace `YOUR_API_KEY`** with your actual API key
 
@@ -146,12 +147,13 @@ Try these commands to verify the MCP tools are working:
 ### "Unauthorized" Error
 - Check that your API key starts with `mcp_`
 - Make sure you included `Bearer ` before the key
-- Verify the key hasn't been revoked at http://localhost:3000/api-keys
+- Verify the key hasn't been revoked at https://daylock-xi.vercel.app/api-keys
+- Make sure you created the key on the production site (not localhost)
 
 ### "Connection refused" / "Cannot connect"
-- Make sure your dev server is running: `npm run dev`
-- Check it's accessible at http://localhost:3000
+- Check that the production site is accessible: https://daylock-xi.vercel.app
 - For Claude, ensure `mcporter` is installed: `npm install -g mcporter`
+- Try the URL in your browser to verify it's up
 
 ### Tools not appearing
 - Restart Cursor/Claude Desktop after configuration
@@ -165,16 +167,18 @@ Try these commands to verify the MCP tools are working:
 
 ---
 
-## Production Setup (Later)
+## Development Setup (Optional)
 
-When you deploy to production:
+If you want to use a local dev server instead:
 
-1. Create a production API key after deploying
-2. Update your MCP config to use your production URL:
+1. Run `npm run dev` locally
+2. Create a key at http://localhost:3000/api-keys
+3. Update your MCP config URLs to use:
    ```
-   https://your-domain.vercel.app/api/mcp
+   http://localhost:3000/api/mcp
    ```
-3. Keep development and production keys separate
+4. Add `--allow-http` flag for Claude Desktop
+5. Keep development and production keys separate
 
 ---
 
