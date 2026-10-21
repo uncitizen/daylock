@@ -27,6 +27,7 @@ model User {
   calendarEvents       CalendarEventCache[]
   pushSubscriptions    PushSubscription[]
   googleCalendarTokens GoogleCalendarToken?
+  apiKeys              ApiKey[]
 
   @@map("users")
 }
@@ -68,6 +69,23 @@ model VerificationToken {
 
   @@unique([identifier, token])
   @@map("verification_tokens")
+}
+
+model ApiKey {
+  id          String    @id @default(cuid())
+  userId      String
+  name        String
+  keyHash     String    @unique
+  prefix      String
+  lastUsedAt  DateTime?
+  expiresAt   DateTime?
+  createdAt   DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([keyHash])
+  @@map("api_keys")
 }
 
 // ─── Workspaces ───────────────────────────────────────────────

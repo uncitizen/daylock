@@ -26,52 +26,61 @@ The MCP server exposes these tools:
 
 ## Authentication
 
-The MCP server uses **NextAuth session-based authentication**. This means:
+The MCP server supports **two authentication methods**:
 
-- You must be signed in to your Daylock account
-- The MCP client must send your session cookie with each request
+### Option 1: API Keys (Recommended)
+
+- **Long-lived credentials** that don't expire (unless you set an expiration)
+- **Easy to manage** - Create and revoke keys from the web UI
+- **Perfect for AI assistants** - No need to refresh credentials
+- Simple `Authorization: Bearer mcp_xxxxx` header
+
+### Option 2: Session Cookies (Alternative)
+
+- Uses NextAuth session-based authentication
+- Requires signing in through the web app
+- Session cookies expire periodically (you'll need to refresh them)
 - Each user can only access their own tasks and workspaces
 
 ## Setup Instructions
 
-### Option 1: Using with Cursor (Recommended)
+### Option 1: Using with Cursor + API Keys (Recommended)
 
 1. Make sure your development server is running:
    ```bash
    npm run dev
    ```
 
-2. In Cursor, open Settings → Features → MCP Servers
+2. **Create an API key**:
+   - Sign in to your Daylock app at http://localhost:3000/login
+   - Navigate to http://localhost:3000/api-keys
+   - Click "Create Key", give it a name (e.g., "Cursor")
+   - **Copy the API key immediately** (you won't see it again!)
 
-3. Add a new server with these settings:
-   - **Name**: Daylock Task Manager
-   - **URL**: `http://localhost:3000/api/mcp`
-   - **Transport**: HTTP
+3. **Configure Cursor**:
+   - Open Settings → Features → MCP Servers
+   - Add a new server with these settings:
+     - **Name**: Daylock Task Manager
+     - **URL**: `http://localhost:3000/api/mcp`
+     - **Transport**: HTTP
+     - **Header name**: `Authorization`
+     - **Header value**: `Bearer YOUR_API_KEY`
 
-4. Sign in to your Daylock app in a browser (http://localhost:3000/login)
+4. **Test it**: Ask Cursor "List my tasks"
 
-5. Copy your session cookie:
-   - Open browser DevTools (F12)
-   - Go to Application → Cookies → `http://localhost:3000`
-   - Find the cookie named `authjs.session-token` (or similar)
-   - Copy its value
+That's it! Your API key won't expire (unless you set an expiration date), so you won't need to update it.
 
-6. In Cursor's MCP settings, add the session cookie as a header:
-   - Header name: `Cookie`
-   - Header value: `authjs.session-token=YOUR_COOKIE_VALUE`
+### Option 2: Using with Claude Desktop + API Keys
 
-7. Test it by asking Cursor: "List my tasks"
+1. **Create an API key** (if you haven't already):
+   - Sign in at http://localhost:3000/login
+   - Go to http://localhost:3000/api-keys
+   - Create a new key and copy it immediately
 
-### Option 2: Using with Claude Desktop
-
-1. Start your development server:
-   ```bash
-   npm run dev
-   ```
-
-2. Open Claude Desktop settings and edit the MCP configuration file
-
-3. Add this configuration:
+2. **Configure Claude Desktop**:
+   - Open Claude Desktop settings
+   - Edit the MCP configuration file
+   - Add this configuration:
    ```json
    {
      "mcpServers": {
@@ -79,47 +88,34 @@ The MCP server uses **NextAuth session-based authentication**. This means:
          "command": "npx",
          "args": ["mcporter", "http://localhost:3000/api/mcp", "--allow-http"],
          "env": {
-           "COOKIE": "authjs.session-token=YOUR_COOKIE_VALUE"
+           "AUTHORIZATION": "Bearer YOUR_API_KEY"
          }
        }
      }
    }
    ```
 
-4. Get your session cookie (see steps in Option 1)
+3. Replace `YOUR_API_KEY` with your actual API key
 
-5. Replace `YOUR_COOKIE_VALUE` with your actual cookie value
+4. Restart Claude Desktop
 
-6. Restart Claude Desktop
-
-7. Test by asking: "What tasks do I have?"
+5. Test by asking: "What tasks do I have?"
 
 ### Option 3: Production Deployment
 
-For production use, you'll want to implement proper API key authentication instead of session cookies.
+API key authentication is already implemented and works great in production!
 
-**Recommended approach:**
+1. Deploy your app to production (it's already deployed on Vercel)
 
-1. Add an API key authentication system:
-   - Generate secure API keys per user
-   - Store them hashed in the database
-   - Accept them via `Authorization: Bearer <key>` header
+2. Sign in to your production app
 
-2. Update `/src/app/api/mcp/route.ts` to check for API key:
-   ```typescript
-   // Check for API key first
-   const authHeader = c.req.header("authorization");
-   if (authHeader?.startsWith("Bearer ")) {
-     const apiKey = authHeader.slice(7);
-     // Verify API key against database
-   }
-   ```
+3. Navigate to `/api-keys` and create a production API key
 
-3. Deploy your app to production
+4. Update your MCP client configuration:
+   - URL: `https://your-production-domain.com/api/mcp`
+   - Header: `Authorization: Bearer YOUR_PRODUCTION_API_KEY`
 
-4. Update MCP client to use production URL:
-   - URL: `https://your-domain.com/api/mcp`
-   - Header: `Authorization: Bearer YOUR_API_KEY`
+That's it! Your production MCP server is ready to use.
 
 ## Testing the MCP Server
 
@@ -165,15 +161,17 @@ curl -X POST http://localhost:3000/api/mcp \
 
 ⚠️ **Important Security Notes:**
 
-1. **Session cookies are temporary** - They expire after some time, so you'll need to refresh them periodically
+1. **API keys are like passwords** - Keep them secret and never commit them to version control
 
-2. **Never commit cookies or API keys** - Keep them out of version control
+2. **Store keys securely** - API keys are hashed (SHA-256) in the database and can never be recovered
 
-3. **Use HTTPS in production** - Never send credentials over plain HTTP
+3. **Revoke compromised keys immediately** - If a key is exposed, revoke it from the API Keys page
 
-4. **Implement rate limiting** - Add rate limiting to prevent abuse
+4. **Use HTTPS in production** - Never send API keys over plain HTTP
 
-5. **Consider OAuth** - For production, implement proper OAuth flow instead of long-lived credentials
+5. **Set expiration dates** - For extra security, set expiration dates when creating keys
+
+6. **One key per client** - Create separate keys for each AI assistant for easier management
 
 ## Troubleshooting
 

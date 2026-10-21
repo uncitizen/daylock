@@ -1,15 +1,30 @@
 import { StreamableHTTPTransport } from "@hono/mcp";
 import { createMcpServer } from "@/lib/mcp-server";
 import { auth } from "@/lib/auth";
+import { validateApiKey } from "@server/domain/api-keys";
 import { NextRequest, NextResponse } from "next/server";
 
 async function handleMcpRequest(req: NextRequest) {
-  // Get NextAuth session from the request
-  const session = await auth();
+  let userId: string | null = null;
 
-  if (!session?.user?.id) {
+  // Try API key authentication first (Authorization: Bearer mcp_xxx)
+  const authHeader = req.headers.get("authorization");
+  if (authHeader?.startsWith("Bearer ")) {
+    const apiKey = authHeader.slice(7);
+    if (apiKey.startsWith("mcp_")) {
+      userId = await validateApiKey(apiKey);
+    }
+  }
+
+  // Fall back to session authentication if no valid API key
+  if (!userId) {
+    const session = await auth();
+    userId = session?.user?.id || null;
+  }
+
+  if (!userId) {
     return NextResponse.json(
-      { error: "Unauthorized - please sign in" },
+      { error: "Unauthorized - provide a valid API key or sign in" },
       {
         status: 401,
         headers: {
@@ -21,7 +36,7 @@ async function handleMcpRequest(req: NextRequest) {
 
   // Create a new MCP server instance with the user's ID
   // This ensures each request is scoped to the authenticated user
-  const mcpServer = createMcpServer(session.user.id);
+  const mcpServer = createMcpServer(userId);
   const transport = new StreamableHTTPTransport();
 
   // Connect the MCP server to the transport
