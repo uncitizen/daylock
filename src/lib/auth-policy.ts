@@ -4,13 +4,14 @@
  */
 
 /**
- * Passwordless dev login is off unless explicitly enabled, and never
- * available in production — a missing Google config must lock the app,
- * not open it.
+ * Passwordless dev login is off unless explicitly enabled in development mode.
+ * Requires NODE_ENV to be exactly "development" — fail closed on unset, "test",
+ * or non-canonical values like "prod".
  */
 export function devLoginEnabled(): boolean {
   return (
-    process.env.AUTH_DEV_LOGIN === "1" && process.env.NODE_ENV !== "production"
+    process.env.AUTH_DEV_LOGIN === "1" &&
+    process.env.NODE_ENV === "development"
   );
 }
 
