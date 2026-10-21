@@ -62,10 +62,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   ],
   callbacks: {
     ...authConfig.callbacks,
-    async signIn({ user, account, profile }) {
+    async signIn({ user, account }) {
       if (account?.provider === "google") {
-        // Primary security: check email allowlist
-        // Note: email_verified check removed - Google OAuth already verifies email ownership
+        // Primary security: check email allowlist.
+        // Do not touch the DB here — Auth.js runs this before the user
+        // row exists, and thrown Prisma errors surface as AccessDenied.
         if (!isEmailAllowed(user.email)) {
           console.log("[AUTH] Sign-in rejected - email not in allowlist:", {
             email: user.email,
@@ -75,10 +76,15 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       } else if (!(account?.provider === "credentials" && devLoginEnabled())) {
         return false;
       }
-      if (user.id) {
-        await ensurePersonalWorkspace(user.id, user.name);
-      }
-      if (account?.provider === "google" && user.id) {
+      return true;
+    },
+  },
+  events: {
+    // Runs after the adapter has persisted the user — safe for FKs.
+    async signIn({ user, account }) {
+      if (!user.id) return;
+      await ensurePersonalWorkspace(user.id, user.name);
+      if (account?.provider === "google") {
         await upsertGoogleCalendarTokens(user.id, {
           access_token: account.access_token,
           refresh_token: account.refresh_token,
@@ -92,7 +98,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           });
         }
       }
-      return true;
     },
   },
 });
