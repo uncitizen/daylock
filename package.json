@@ -23,6 +23,7 @@
     "@neon/env": "^1.4.3",
     "@prisma/client": "^6.19.0",
     "date-fns": "^4.4.0",
+    "date-fns-tz": "^3.2.0",
     "googleapis": "^181.0.0",
     "hono": "^4.13.13",
     "next": "16.3.5",

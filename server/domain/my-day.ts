@@ -6,6 +6,7 @@ import {
   type List,
 } from "@prisma/client";
 import { addDays, endOfDay, startOfDay } from "date-fns";
+import { toZonedTime, fromZonedTime } from "date-fns-tz";
 import type { MyDayPatchInput } from "../../packages/api-types";
 import { prisma } from "../db/client";
 import { materializeAllActiveRules } from "./recurrence";
@@ -19,8 +20,19 @@ function streamInfo(list: List) {
 }
 
 export async function getMyDay(userId: string, date: Date) {
+  // Get user's timezone for proper date interpretation
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { timezone: true },
+  });
+  const userTz = user?.timezone ?? "America/New_York";
+
+  // Convert the requested date to user's timezone
   const dayStart = startOfDay(date);
   const dayEnd = endOfDay(date);
+
+  // For completed items, also check previous day to account for UTC/local timezone mismatches
+  const completedSearchStart = addDays(dayStart, -1);
 
   // Ensure current open chips exist before reading
   await materializeAllActiveRules();
@@ -47,7 +59,7 @@ export async function getMyDay(userId: string, date: Date) {
     }),
     prisma.taskOccurrence.findMany({
       where: {
-        date: dayStart,
+        date: { gte: completedSearchStart, lte: dayEnd },
         status: {
           in: [OccurrenceStatus.done, OccurrenceStatus.skipped],
         },
@@ -97,7 +109,7 @@ export async function getMyDay(userId: string, date: Date) {
     prisma.task.findMany({
       where: {
         kind: "flex",
-        completedAt: { gte: dayStart, lte: dayEnd },
+        completedAt: { gte: completedSearchStart, lte: addDays(dayEnd, 1) },
         archivedAt: null,
         list: { workspace: { memberships: { some: { userId } } } },
       },
@@ -242,25 +254,33 @@ export async function getMyDay(userId: string, date: Date) {
     orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
   });
 
+  // Filter completed items to only include those completed within the requested day in user's timezone
+  const userDayStart = fromZonedTime(dayStart, userTz);
+  const userDayEnd = fromZonedTime(dayEnd, userTz);
+
   const completed = [
-    ...completedOccurrences.map((occ) => ({
-      type: "occurrence" as const,
-      id: occ.id,
-      taskId: occ.taskId,
-      title: occ.task.title,
-      status: occ.status,
-      completedAt: occ.updatedAt.toISOString(),
-      listName: occ.task.list.name,
-      ...streamInfo(occ.task.list),
-    })),
-    ...completedFlexTasks.map((task) => ({
-      type: "flex" as const,
-      id: task.id,
-      title: task.title,
-      completedAt: task.completedAt!.toISOString(),
-      listName: task.list.name,
-      ...streamInfo(task.list),
-    })),
+    ...completedOccurrences
+      .filter((occ) => occ.updatedAt >= userDayStart && occ.updatedAt <= userDayEnd)
+      .map((occ) => ({
+        type: "occurrence" as const,
+        id: occ.id,
+        taskId: occ.taskId,
+        title: occ.task.title,
+        status: occ.status,
+        completedAt: occ.updatedAt.toISOString(),
+        listName: occ.task.list.name,
+        ...streamInfo(occ.task.list),
+      })),
+    ...completedFlexTasks
+      .filter((task) => task.completedAt! >= userDayStart && task.completedAt! <= userDayEnd)
+      .map((task) => ({
+        type: "flex" as const,
+        id: task.id,
+        title: task.title,
+        completedAt: task.completedAt!.toISOString(),
+        listName: task.list.name,
+        ...streamInfo(task.list),
+      })),
   ].sort((a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime());
 
   return {
