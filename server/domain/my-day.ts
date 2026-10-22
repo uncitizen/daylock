@@ -25,7 +25,7 @@ export async function getMyDay(userId: string, date: Date) {
   // Ensure current open chips exist before reading
   await materializeAllActiveRules();
 
-  const [items, occurrences, calendarEvents, recentFlex, scheduledFlex] = await Promise.all([
+  const [items, occurrences, completedOccurrences, calendarEvents, recentFlex, scheduledFlex, completedFlexTasks] = await Promise.all([
     prisma.myDayItem.findMany({
       where: { userId, date: dayStart },
       orderBy: [{ pinned: "desc" }, { sortOrder: "asc" }],
@@ -44,6 +44,22 @@ export async function getMyDay(userId: string, date: Date) {
       include: {
         task: { include: { recurrenceRule: true, list: true } },
       },
+    }),
+    prisma.taskOccurrence.findMany({
+      where: {
+        date: dayStart,
+        status: {
+          in: [OccurrenceStatus.done, OccurrenceStatus.skipped],
+        },
+        task: {
+          archivedAt: null,
+          list: { workspace: { memberships: { some: { userId } } } },
+        },
+      },
+      include: {
+        task: { include: { recurrenceRule: true, list: true } },
+      },
+      orderBy: { updatedAt: "desc" },
     }),
     prisma.calendarEventCache.findMany({
       where: {
@@ -77,6 +93,16 @@ export async function getMyDay(userId: string, date: Date) {
       },
       include: { list: true },
       orderBy: { dueAt: "asc" },
+    }),
+    prisma.task.findMany({
+      where: {
+        kind: "flex",
+        completedAt: { gte: dayStart, lte: dayEnd },
+        archivedAt: null,
+        list: { workspace: { memberships: { some: { userId } } } },
+      },
+      include: { list: true },
+      orderBy: { completedAt: "desc" },
     }),
   ]);
 
@@ -216,6 +242,27 @@ export async function getMyDay(userId: string, date: Date) {
     orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
   });
 
+  const completed = [
+    ...completedOccurrences.map((occ) => ({
+      type: "occurrence" as const,
+      id: occ.id,
+      taskId: occ.taskId,
+      title: occ.task.title,
+      status: occ.status,
+      completedAt: occ.updatedAt.toISOString(),
+      listName: occ.task.list.name,
+      ...streamInfo(occ.task.list),
+    })),
+    ...completedFlexTasks.map((task) => ({
+      type: "flex" as const,
+      id: task.id,
+      title: task.title,
+      completedAt: task.completedAt!.toISOString(),
+      listName: task.list.name,
+      ...streamInfo(task.list),
+    })),
+  ].sort((a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime());
+
   return {
     date: dayStart,
     items,
@@ -223,6 +270,7 @@ export async function getMyDay(userId: string, date: Date) {
     suggestions,
     flexAvailable: flexCandidates,
     streams,
+    completed,
   };
 }
 

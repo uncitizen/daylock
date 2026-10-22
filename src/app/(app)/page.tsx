@@ -8,6 +8,7 @@ import { StreamDots, StreamTag, type StreamOption } from "@/components/StreamDot
 import { TaskEditor } from "@/components/TaskEditor";
 import {
   clientApi,
+  type CompletedItem,
   type FlexTask,
   type Suggestion,
   type TimelineItem,
@@ -65,6 +66,7 @@ export default function MyDayPage() {
   const [timeline, setTimeline] = useState<TimelineItem[]>([]);
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [flexAvailable, setFlexAvailable] = useState<FlexTask[]>([]);
+  const [completed, setCompleted] = useState<CompletedItem[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [syncMsg, setSyncMsg] = useState<string | null>(null);
@@ -84,6 +86,7 @@ export default function MyDayPage() {
       setTimeline(data.timeline);
       setSuggestions(data.suggestions);
       setFlexAvailable(data.flexAvailable);
+      setCompleted(data.completed);
       setStreams(
         data.streams.map((st) => ({ id: st.id, name: st.name, color: st.color ?? "#5c635c" })),
       );
@@ -683,6 +686,38 @@ export default function MyDayPage() {
               </article>
             );
           })}
+        </section>
+      )}
+
+      {!loading && completed.length > 0 && (
+        <section className="space-y-3">
+          <h2 className="font-[family-name:var(--font-display)] text-xl font-semibold text-ok">
+            Completed today
+          </h2>
+          <ul className="space-y-2">
+            {completed.map((item) => (
+              <li
+                key={`${item.type}-${item.id}`}
+                className="flex items-center justify-between gap-2 border-l-4 border-ok bg-ok/5 px-4 py-2 opacity-60"
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-ok">✓</span>
+                    <span className="font-medium line-through">{item.title}</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs text-muted">
+                    {item.streamColor && !item.isInbox && (
+                      <StreamTag name={item.listName} color={item.streamColor} />
+                    )}
+                    <span>{timeLabel(item.completedAt)}</span>
+                    {item.type === "occurrence" && item.status === "skipped" && (
+                      <span className="text-muted">(skipped)</span>
+                    )}
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
         </section>
       )}
 

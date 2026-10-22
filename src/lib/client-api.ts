@@ -20,6 +20,7 @@ export const clientApi = {
       suggestions: Suggestion[];
       flexAvailable: FlexTask[];
       streams: { id: string; name: string; color: string | null }[];
+      completed: CompletedItem[];
     }>(`/api/v1/my-day?date=${date}`),
   patchMyDay: (body: unknown) =>
     api(`/api/v1/my-day`, { method: "PATCH", body: JSON.stringify(body) }),
@@ -181,6 +182,30 @@ export type TimelineItem =
       source: "manual" | "suggested";
       priority?: string;
       dueAt?: string | null;
+    };
+
+export type CompletedItem =
+  | {
+      type: "occurrence";
+      id: string;
+      taskId: string;
+      title: string;
+      status: string;
+      completedAt: string;
+      listName: string;
+      listId: string;
+      streamColor: string | null;
+      isInbox: boolean;
+    }
+  | {
+      type: "flex";
+      id: string;
+      title: string;
+      completedAt: string;
+      listName: string;
+      listId: string;
+      streamColor: string | null;
+      isInbox: boolean;
     };
 
 export type Suggestion = {
