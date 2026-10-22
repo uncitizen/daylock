@@ -9,6 +9,7 @@ import {
   setMinutes,
   startOfDay,
 } from "date-fns";
+import { toZonedTime } from "date-fns-tz";
 import { prisma } from "../db/client";
 
 const OPEN_STATUSES: Array<"pending" | "snoozed"> = ["pending", "snoozed"];
@@ -209,7 +210,12 @@ export async function materializeOccurrencesForTask(taskId: string) {
     activeMonths: task.recurrenceRule.activeMonths ?? [],
     byWeekday: task.recurrenceRule.byWeekday ?? [],
   };
-  const today = startOfDay(new Date());
+  
+  // Use America/New_York timezone for determining "today" to match user expectations
+  // TODO: Look up actual user timezone from task owner
+  const userTz = "America/New_York";
+  const nowInUserTz = toZonedTime(new Date(), userTz);
+  const today = startOfDay(nowInUserTz);
 
   if (!isSeasonallyActive(rule, today)) {
     // Expire any open chips while paused/off-season
@@ -296,7 +302,10 @@ export async function materializeAllActiveRules() {
 
 /** Soft open occurrences from before today → expired; advance habit/rolling nextDue. */
 export async function expireSoftPastOccurrences() {
-  const today = startOfDay(new Date());
+  // Use America/New_York timezone for determining "today"
+  const userTz = "America/New_York";
+  const nowInUserTz = toZonedTime(new Date(), userTz);
+  const today = startOfDay(nowInUserTz);
   const past = await prisma.taskOccurrence.findMany({
     where: {
       status: { in: OPEN_STATUSES },
@@ -338,8 +347,11 @@ export async function expireSoftPastOccurrences() {
 
 /** Mark overdue hard occurrences as missed and schedule alarms. */
 export async function markMissedHardOccurrences() {
-  const now = new Date();
-  const today = startOfDay(now);
+  // Use America/New_York timezone for determining "today"
+  const userTz = "America/New_York";
+  const nowInUserTz = toZonedTime(new Date(), userTz);
+  const today = startOfDay(nowInUserTz);
+  const now = nowInUserTz;
   const overdue = await prisma.taskOccurrence.findMany({
     where: {
       status: "pending",
