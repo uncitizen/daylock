@@ -31,8 +31,9 @@ export async function getMyDay(userId: string, date: Date) {
   const dayStart = startOfDay(date);
   const dayEnd = endOfDay(date);
 
-  // For completed items, also check previous day to account for UTC/local timezone mismatches
-  const completedSearchStart = addDays(dayStart, -1);
+  // For completed items, search a 3-day window to account for UTC/local timezone mismatches
+  // (yesterday, today, tomorrow in terms of the date field, then filter by actual completion time)
+  const completedSearchStart = addDays(dayStart, -2);
 
   // Ensure current open chips exist before reading
   await materializeAllActiveRules();
@@ -59,7 +60,7 @@ export async function getMyDay(userId: string, date: Date) {
     }),
     prisma.taskOccurrence.findMany({
       where: {
-        date: { gte: completedSearchStart, lte: dayEnd },
+        date: { gte: completedSearchStart, lte: addDays(dayEnd, 2) },
         status: {
           in: [OccurrenceStatus.done, OccurrenceStatus.skipped],
         },
@@ -109,7 +110,7 @@ export async function getMyDay(userId: string, date: Date) {
     prisma.task.findMany({
       where: {
         kind: "flex",
-        completedAt: { gte: completedSearchStart, lte: addDays(dayEnd, 1) },
+        completedAt: { gte: completedSearchStart, lte: addDays(dayEnd, 2) },
         archivedAt: null,
         list: { workspace: { memberships: { some: { userId } } } },
       },
