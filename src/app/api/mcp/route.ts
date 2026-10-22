@@ -157,19 +157,68 @@ async function handleMcpRequest(req: NextRequest) {
         break;
         
       case "tools/call":
-        // This would call the actual tool implementation
-        // For now, return an error since we need to wire up the actual MCP server
-        return NextResponse.json(
-          {
+        // Call the actual tool implementation
+        const { name: toolName, arguments: toolArgs } = params;
+        
+        try {
+          // Import the tool handlers directly
+          const { listTasks, createTask, completeTask, updateTask, listStreams, getMyDay } = await import("@/lib/mcp-tools");
+          
+          let toolResult;
+          
+          switch (toolName) {
+            case "list_tasks":
+              toolResult = await listTasks(userId, toolArgs);
+              break;
+            case "create_task":
+              toolResult = await createTask(userId, toolArgs);
+              break;
+            case "complete_task":
+              toolResult = await completeTask(userId, toolArgs);
+              break;
+            case "update_task":
+              toolResult = await updateTask(userId, toolArgs);
+              break;
+            case "list_streams":
+              toolResult = await listStreams(userId, toolArgs);
+              break;
+            case "get_my_day":
+              toolResult = await getMyDay(userId, toolArgs);
+              break;
+            default:
+              return NextResponse.json(
+                {
+                  jsonrpc: "2.0",
+                  id,
+                  error: {
+                    code: -32601,
+                    message: `Unknown tool: ${toolName}`,
+                  },
+                },
+                { status: 200 }
+              );
+          }
+          
+          return NextResponse.json({
             jsonrpc: "2.0",
             id,
-            error: {
-              code: -32601,
-              message: "Tool calling not yet implemented in this version",
+            result: toolResult,
+          });
+          
+        } catch (error) {
+          console.error("Tool execution error:", error);
+          return NextResponse.json(
+            {
+              jsonrpc: "2.0",
+              id,
+              error: {
+                code: -32603,
+                message: `Tool execution failed: ${String(error)}`,
+              },
             },
-          },
-          { status: 200 }
-        );
+            { status: 200 }
+          );
+        }
         
       default:
         return NextResponse.json(
