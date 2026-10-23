@@ -53,6 +53,10 @@ function EditButton({ onClick, active }: { onClick: () => void; active: boolean 
 function taskMeta(t: StreamTask) {
   const parts: string[] = [];
   if (t.repeatMode) parts.push(`repeats · ${t.repeatMode}`);
+  if (t.repeatMode === "rolling") {
+    if (t.rollingDue) parts.push("ready");
+    else if (t.nextDueAt) parts.push(`next ${format(new Date(t.nextDueAt), "MMM d")}`);
+  }
   if (t.estimatedMinutes) parts.push(`${t.estimatedMinutes}m`);
   if (t.dueAt) parts.push(format(new Date(t.dueAt), "MMM d"));
   return parts.join(" · ");
@@ -566,7 +570,12 @@ function StreamLane({
   const next = s.tasks.slice(0, COLLAPSED_TASKS);
   const goalTitle = new Map(s.goals.map((g) => [g.id, g.title]));
 
+  function canPin(t: StreamTask) {
+    return t.kind === "flex" || t.repeatMode === "rolling";
+  }
+
   async function pin(t: StreamTask) {
+    if (!canPin(t)) return;
     await run(
       () => clientApi.patchMyDay({ date, pin: { refType: "flex", refId: t.id, pinned: !t.pinnedToday } }),
       "Could not pin",
@@ -608,8 +617,16 @@ function StreamLane({
       <button
         type="button"
         onClick={() => pin(t)}
-        disabled={t.kind !== "flex"}
-        title={t.kind !== "flex" ? "Repeating tasks show in My Day on their own" : t.pinnedToday ? "Remove from My Day" : "Add to My Day"}
+        disabled={!canPin(t)}
+        title={
+          !canPin(t)
+            ? "Habits and fixed repeats show on My Day on their schedule"
+            : t.pinnedToday
+              ? "Remove from My Day"
+              : t.repeatMode === "rolling"
+                ? "Add to My Day (rolling stays off until you pick it up)"
+                : "Add to My Day"
+        }
         aria-label={t.pinnedToday ? "Remove from My Day" : "Add to My Day"}
         className="flex h-7 w-7 shrink-0 items-center justify-center rounded hover:bg-line/40 disabled:opacity-30"
       >

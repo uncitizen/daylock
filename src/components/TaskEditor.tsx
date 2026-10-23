@@ -418,8 +418,8 @@ export function TaskEditor({ mode, onDone, onCancel }: Props) {
               )}
               <span className="text-xs text-muted">
                 {nextDue
-                  ? "Stays off My Day until this date, then rolls daily until done."
-                  : "Empty = due today (shows on My Day until you finish or skip)."}
+                  ? "Available from this date in Streams — stays off My Day until you pin or Pick 3 it."
+                  : "Empty = available now in Streams (still off My Day until you pick it up)."}
               </span>
             </div>
             <div>

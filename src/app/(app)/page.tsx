@@ -334,7 +334,7 @@ export default function MyDayPage() {
 
   function modeLabel(mode: string) {
     if (mode === "habit") return "Habit";
-    if (mode === "rolling") return "Rolling due";
+    if (mode === "rolling") return "Picked up · rolling";
     return "Calendar";
   }
 

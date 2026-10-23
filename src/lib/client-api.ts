@@ -265,6 +265,10 @@ export type StreamTask = {
   estimatedMinutes?: number | null;
   dueAt?: string | null;
   repeatMode: "habit" | "rolling" | "fixed" | null;
+  /** ISO — when the next rolling cycle becomes available. */
+  nextDueAt?: string | null;
+  /** Rolling and nextDueAt ≤ today (ready to pick up). */
+  rollingDue?: boolean;
   pinnedToday: boolean;
   createdAt: string;
 };
