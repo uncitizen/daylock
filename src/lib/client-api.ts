@@ -313,6 +313,8 @@ export type RecurrenceInput = {
   windowStart?: string | null;
   windowEnd?: string | null;
   activeMonths: number[];
+  /** ISO datetime; rolling tasks stay off My Day until this day. */
+  nextDueAt?: string | null;
 };
 
 export type StreamOptions = {

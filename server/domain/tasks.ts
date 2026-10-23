@@ -144,7 +144,9 @@ function recurrenceCreateData(
   };
 
   let nextDueAt = today;
-  if (mode === "habit" || mode === "fixed") {
+  if (input.nextDueAt) {
+    nextDueAt = startOfDay(new Date(input.nextDueAt));
+  } else if (mode === "habit" || mode === "fixed") {
     nextDueAt = nextMatchingDate(pseudoRule, today);
   }
 
@@ -236,8 +238,9 @@ export async function updateTask(taskId: string, input: UpdateTaskInput) {
       from,
       createdAt: existingRule?.createdAt,
     });
-    // Editing an "every N days after done" task keeps its current due date.
-    if (rec.mode === "rolling") {
+    // Editing an "every N after done" task keeps its current due date unless
+    // the client explicitly sets nextDueAt (e.g. plan for a future day).
+    if (rec.mode === "rolling" && input.recurrence.nextDueAt === undefined) {
       rec.nextDueAt =
         existingRule?.mode === "rolling" && existingRule.nextDueAt
           ? existingRule.nextDueAt

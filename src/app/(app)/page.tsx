@@ -1,7 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { format, isBefore, isToday, isTomorrow, startOfDay } from "date-fns";
+import {
+  differenceInCalendarDays,
+  format,
+  isBefore,
+  isToday,
+  isTomorrow,
+  startOfDay,
+} from "date-fns";
 import { TaskTitle } from "@/components/TaskTitle";
 import { TrashButton } from "@/components/TrashButton";
 import { StreamDots, StreamTag, type StreamOption } from "@/components/StreamDots";
@@ -568,7 +575,7 @@ export default function MyDayPage() {
                         </div>
                       )}
                       {item.mode === "rolling" && (
-                        <div className="flex flex-wrap gap-2">
+                        <div className="flex flex-wrap items-center gap-2">
                           <button
                             type="button"
                             className="rounded border border-line px-2 py-1"
@@ -583,6 +590,27 @@ export default function MyDayPage() {
                           >
                             Skip this cycle
                           </button>
+                          <label className="flex items-center gap-1 text-xs text-muted">
+                            Plan for
+                            <input
+                              type="date"
+                              className="rounded border border-line bg-paper px-1 py-0.5 text-ink"
+                              min={format(new Date(), "yyyy-MM-dd")}
+                              onChange={(e) => {
+                                const value = e.target.value;
+                                if (!value) return;
+                                const days = differenceInCalendarDays(
+                                  startOfDay(new Date(`${value}T00:00:00`)),
+                                  startOfDay(new Date()),
+                                );
+                                if (days < 1) {
+                                  setError("Pick a future date");
+                                  return;
+                                }
+                                void doSkip(item.id, "defer", "planned", days);
+                              }}
+                            />
+                          </label>
                         </div>
                       )}
                       {item.mode === "fixed" && (

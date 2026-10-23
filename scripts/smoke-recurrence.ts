@@ -1,7 +1,12 @@
-import { startOfDay, subDays } from "date-fns";
+import { addDays, startOfDay, subDays } from "date-fns";
 import { prisma } from "../server/db/client";
 import { ensurePersonalWorkspace } from "../server/domain/workspaces";
-import { createTask, skipOccurrence, completeOccurrence } from "../server/domain/tasks";
+import {
+  createTask,
+  skipOccurrence,
+  completeOccurrence,
+  updateTask,
+} from "../server/domain/tasks";
 import { getMyDay } from "../server/domain/my-day";
 import {
   expireSoftPastOccurrences,
@@ -89,8 +94,48 @@ async function main() {
   const expired = await expireSoftPastOccurrences();
   await materializeOccurrencesForTask(soft.id);
 
+  // Plan a rolling task for a future date — must not chip today.
+  const plannedDue = startOfDay(addDays(new Date(), 20));
+  const planned = await createTask({
+    listId: inbox.id,
+    title: "Analyze promo results",
+    recurrence: {
+      mode: "rolling",
+      frequency: "monthly",
+      interval: 1,
+      skippable: true,
+      alarmPolicy: "none",
+      nextDueAt: plannedDue.toISOString(),
+    },
+  });
+  const plannedOpen = await prisma.taskOccurrence.count({
+    where: { taskId: planned.id, status: "pending" },
+  });
+  const plannedRule = await prisma.recurrenceRule.findUniqueOrThrow({
+    where: { taskId: planned.id },
+  });
+
+  // Repoint an already-due rolling task into the future and clear today's chip.
+  await updateTask(grass.id, {
+    recurrence: {
+      mode: "rolling",
+      frequency: "daily",
+      interval: 14,
+      skippable: true,
+      alarmPolicy: "none",
+      activeMonths: [4, 5, 6, 7, 8, 9],
+      nextDueAt: plannedDue.toISOString(),
+    },
+  });
+  const grassOpenAfterPlan = await prisma.taskOccurrence.count({
+    where: { taskId: grass.id, status: "pending" },
+  });
+
   const day = await getMyDay(user.id, new Date());
   const occChips = day.timeline.filter((t) => t.type === "occurrence");
+  const plannedOnMyDay = occChips.some(
+    (c) => c.type === "occurrence" && c.taskId === planned.id,
+  );
 
   console.log(
     JSON.stringify(
@@ -100,6 +145,10 @@ async function main() {
         habitOpenAfterSkip,
         grassNextDue: grassRule.nextDueAt,
         expired,
+        plannedOpen,
+        plannedNextDue: plannedRule.nextDueAt,
+        grassOpenAfterPlan,
+        plannedOnMyDay,
         myDayOccurrenceCount: occChips.length,
         modes: occChips.map((c) => ("mode" in c ? c.mode : null)),
       },

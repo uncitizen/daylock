@@ -30,6 +30,8 @@ export const RecurrenceInputSchema = z.object({
   windowEnd: z.string().regex(/^\d{2}:\d{2}$/).optional().nullable(),
   activeMonths: z.array(z.number().int().min(1).max(12)).optional(),
   pauseUntil: z.string().datetime().optional().nullable(),
+  /** When the next rolling/habit/fixed occurrence should become due (ISO). */
+  nextDueAt: z.string().datetime().optional().nullable(),
 });
 
 export const CreateTaskSchema = z.object({
