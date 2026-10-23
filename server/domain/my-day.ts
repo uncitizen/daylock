@@ -6,10 +6,15 @@ import {
   type List,
 } from "@prisma/client";
 import { addDays, endOfDay, startOfDay } from "date-fns";
-import { toZonedTime, fromZonedTime } from "date-fns-tz";
+import { fromZonedTime } from "date-fns-tz";
 import type { MyDayPatchInput } from "../../packages/api-types";
 import { prisma } from "../db/client";
-import { materializeAllActiveRules } from "./recurrence";
+import { materializeAllActiveRules, materializeOccurrencesForTask } from "./recurrence";
+
+const OPEN_OCC_STATUSES: OccurrenceStatus[] = [
+  OccurrenceStatus.pending,
+  OccurrenceStatus.snoozed,
+];
 
 function streamInfo(list: List) {
   return {
@@ -146,6 +151,14 @@ export async function getMyDay(userId: string, date: Date) {
   // At most one missed chip per template (latest only already via single-open rule)
   const pinnedKeys = new Set(items.map((i) => `${i.refType}:${i.refId}`));
 
+  // Rolling (every-N-after-done) stays in Streams until you pick it up — only
+  // habit/fixed auto-land on My Day. Pinned rolling chips are included.
+  const visibleOccurrences = occurrences.filter((occ) => {
+    const mode = occ.task.recurrenceRule?.mode ?? "rolling";
+    if (mode !== "rolling") return true;
+    return pinnedKeys.has(`occurrence:${occ.id}`);
+  });
+
   const timeline = [
     ...calendarEvents.map((ev) => ({
       type: "calendar" as const,
@@ -158,7 +171,7 @@ export async function getMyDay(userId: string, date: Date) {
       pinned: pinnedKeys.has(`calendar:${ev.id}`),
       location: ev.location,
     })),
-    ...occurrences.map((occ) => ({
+    ...visibleOccurrences.map((occ) => ({
       type: "occurrence" as const,
       id: occ.id,
       taskId: occ.taskId,
@@ -295,10 +308,94 @@ export async function getMyDay(userId: string, date: Date) {
   };
 }
 
+/**
+ * Put a rolling ("every N after done") task on My Day, or take it off.
+ * Streams pin with refType flex + task id; we resolve to an occurrence pin.
+ */
+export async function setRollingTaskOnMyDay(
+  userId: string,
+  taskId: string,
+  day: Date,
+  pinned: boolean,
+  source: MyDaySource = MyDaySource.manual,
+) {
+  const dayStart = startOfDay(day);
+
+  if (!pinned) {
+    const open = await prisma.taskOccurrence.findMany({
+      where: { taskId, status: { in: OPEN_OCC_STATUSES } },
+      select: { id: true },
+    });
+    if (open.length === 0) return null;
+    await prisma.myDayItem.deleteMany({
+      where: {
+        userId,
+        date: dayStart,
+        refType: MyDayRefType.occurrence,
+        refId: { in: open.map((o) => o.id) },
+      },
+    });
+    return null;
+  }
+
+  const rule = await prisma.recurrenceRule.findUnique({ where: { taskId } });
+  if (!rule || rule.mode !== "rolling") {
+    throw new Error("NOT_ROLLING");
+  }
+  // Early pickup: bring nextDue forward so materialize can open a chip today.
+  if (rule.nextDueAt && startOfDay(rule.nextDueAt) > dayStart) {
+    await prisma.recurrenceRule.update({
+      where: { id: rule.id },
+      data: { nextDueAt: dayStart },
+    });
+  }
+
+  const occ = await materializeOccurrencesForTask(taskId);
+  if (!occ) throw new Error("ROLLING_NOT_AVAILABLE");
+
+  const max = await prisma.myDayItem.aggregate({
+    where: { userId, date: dayStart },
+    _max: { sortOrder: true },
+  });
+  await prisma.myDayItem.upsert({
+    where: {
+      userId_date_refType_refId: {
+        userId,
+        date: dayStart,
+        refType: MyDayRefType.occurrence,
+        refId: occ.id,
+      },
+    },
+    create: {
+      userId,
+      date: dayStart,
+      refType: MyDayRefType.occurrence,
+      refId: occ.id,
+      pinned: true,
+      sortOrder: (max._max.sortOrder ?? 0) + 1,
+      source,
+    },
+    update: { pinned: true, source },
+  });
+  return occ;
+}
+
 export async function patchMyDay(userId: string, input: MyDayPatchInput) {
   const day = startOfDay(new Date(input.date + "T00:00:00"));
 
   if (input.pin) {
+    // Streams pins rolling templates with refType flex + task id.
+    if (input.pin.refType === MyDayRefType.flex) {
+      const task = await prisma.task.findUnique({
+        where: { id: input.pin.refId },
+        include: { recurrenceRule: true },
+      });
+      if (task?.recurrenceRule?.mode === "rolling") {
+        await setRollingTaskOnMyDay(userId, task.id, day, input.pin.pinned);
+        return getMyDay(userId, day);
+      }
+    }
+
     if (input.pin.pinned) {
       const max = await prisma.myDayItem.aggregate({
         where: { userId, date: day },

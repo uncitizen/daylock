@@ -68,6 +68,7 @@ export function TaskEditor({ mode, onDone, onCancel }: Props) {
   const [interval, setIntervalN] = useState(1);
   const [unit, setUnit] = useState<"daily" | "weekly" | "monthly">("weekly");
   const [months, setMonths] = useState<number[]>([]);
+  const [nextDue, setNextDue] = useState("");
   const [repeatTime, setRepeatTime] = useState("");
   const [repeatTouched, setRepeatTouched] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -90,6 +91,7 @@ export function TaskEditor({ mode, onDone, onCancel }: Props) {
       setIntervalN(rule.interval);
       setUnit(rule.frequency as "daily" | "weekly" | "monthly");
       setMonths(rule.activeMonths ?? []);
+      setNextDue(rule.nextDueAt ? toLocalDate(rule.nextDueAt) : "");
       return;
     }
     setRepeat("days");
@@ -163,6 +165,8 @@ export function TaskEditor({ mode, onDone, onCancel }: Props) {
       windowStart,
       windowEnd,
       activeMonths: months,
+      // null = due today (shows on My Day); a future date keeps it off until then.
+      nextDueAt: nextDue ? new Date(`${nextDue}T00:00:00`).toISOString() : null,
     };
   }
 
@@ -392,6 +396,31 @@ export function TaskEditor({ mode, onDone, onCancel }: Props) {
                 <option value="monthly">month(s)</option>
               </select>
               <span className="text-xs text-muted">counted from when you finish it</span>
+            </div>
+            <div className="flex flex-wrap items-center gap-3">
+              <label className="flex items-center gap-2">
+                Next due
+                <input
+                  type="date"
+                  className={field}
+                  value={nextDue}
+                  onChange={(e) => touch(setNextDue)(e.target.value)}
+                />
+              </label>
+              {nextDue && (
+                <button
+                  type="button"
+                  className="text-xs text-muted hover:text-ink"
+                  onClick={() => touch(setNextDue)("")}
+                >
+                  Clear
+                </button>
+              )}
+              <span className="text-xs text-muted">
+                {nextDue
+                  ? "Available from this date in Streams — stays off My Day until you pin or Pick 3 it."
+                  : "Empty = available now in Streams (still off My Day until you pick it up)."}
+              </span>
             </div>
             <div>
               <p className="mb-1 text-xs text-muted">Only in these months (none = all year)</p>

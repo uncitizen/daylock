@@ -317,12 +317,16 @@ export async function expireSoftPastOccurrences() {
 
   let n = 0;
   for (const occ of past) {
+    const rule = occ.task.recurrenceRule;
+    // Rolling chips soft-slide in place so pins (and "due but not picked up")
+    // stay attached to the same occurrence id across days.
+    if (rule?.mode === "rolling") continue;
+
     await prisma.taskOccurrence.update({
       where: { id: occ.id },
       data: { status: "expired" },
     });
     n++;
-    const rule = occ.task.recurrenceRule;
     if (!rule) continue;
 
     if (rule.mode === "habit") {
@@ -331,9 +335,6 @@ export async function expireSoftPastOccurrences() {
         where: { id: rule.id },
         data: { nextDueAt: next },
       });
-    } else if (rule.mode === "rolling") {
-      // Keep nextDueAt in the past so materializer slides one chip to today
-      // (still due — one floating item)
     } else if (rule.mode === "fixed" && rule.skippable) {
       const next = nextMatchingDate(rule, today);
       await prisma.recurrenceRule.update({

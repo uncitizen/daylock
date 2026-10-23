@@ -1,6 +1,7 @@
 import { MyDayRefType, MyDaySource, OccurrenceStatus } from "@prisma/client";
 import { addDays, differenceInCalendarDays, endOfDay, startOfDay } from "date-fns";
 import { prisma } from "../db/client";
+import { setRollingTaskOnMyDay } from "./my-day";
 
 /** Minutes credited for a finished task with no estimate. */
 const DEFAULT_TASK_MINUTES = 30;
@@ -109,6 +110,7 @@ export async function getStreamsBoard(userId: string, date: Date) {
   await backfillColors(streams);
   const streamIds = streams.map((s) => s.id);
 
+  const dayStart = startOfDay(date);
   const [doneTasks, doneOccurrences, pinnedToday, lastTaskByList, lastOccurrences] =
     await Promise.all([
       prisma.task.findMany({
@@ -128,8 +130,8 @@ export async function getStreamsBoard(userId: string, date: Date) {
         select: { task: { select: { listId: true, estimatedMinutes: true } } },
       }),
       prisma.myDayItem.findMany({
-        where: { userId, date: startOfDay(date), refType: MyDayRefType.flex },
-        select: { refId: true },
+        where: { userId, date: dayStart },
+        select: { refId: true, refType: true },
       }),
       prisma.task.groupBy({
         by: ["listId"],
@@ -158,7 +160,21 @@ export async function getStreamsBoard(userId: string, date: Date) {
   }
   const totalMinutes = [...minutesByList.values()].reduce((a, b) => a + b, 0);
   const totalWeight = streams.reduce((a, s) => a + s.weight, 0);
-  const pinnedIds = new Set(pinnedToday.map((p) => p.refId));
+
+  // Flex pins use task id; rolling pins use occurrence id → map back to task.
+  const pinnedIds = new Set(
+    pinnedToday.filter((p) => p.refType === MyDayRefType.flex).map((p) => p.refId),
+  );
+  const occPinIds = pinnedToday
+    .filter((p) => p.refType === MyDayRefType.occurrence)
+    .map((p) => p.refId);
+  if (occPinIds.length > 0) {
+    const occTasks = await prisma.taskOccurrence.findMany({
+      where: { id: { in: occPinIds } },
+      select: { taskId: true },
+    });
+    for (const o of occTasks) pinnedIds.add(o.taskId);
+  }
 
   const lastActivity = new Map<string, Date>();
   for (const row of lastTaskByList) {
@@ -171,18 +187,26 @@ export async function getStreamsBoard(userId: string, date: Date) {
   });
 
   const toLane = (l: (typeof lists)[number]) =>
-    l.tasks.map((t) => ({
-      id: t.id,
-      title: t.title,
-      goalId: t.goalId,
-      sortOrder: t.sortOrder,
-      kind: t.kind,
-      estimatedMinutes: t.estimatedMinutes,
-      dueAt: t.dueAt,
-      repeatMode: t.recurrenceRule?.mode ?? null,
-      pinnedToday: pinnedIds.has(t.id),
-      createdAt: t.createdAt,
-    }));
+    l.tasks.map((t) => {
+      const nextDueAt = t.recurrenceRule?.nextDueAt ?? null;
+      const rollingDue =
+        t.recurrenceRule?.mode === "rolling" &&
+        (!nextDueAt || startOfDay(nextDueAt) <= dayStart);
+      return {
+        id: t.id,
+        title: t.title,
+        goalId: t.goalId,
+        sortOrder: t.sortOrder,
+        kind: t.kind,
+        estimatedMinutes: t.estimatedMinutes,
+        dueAt: t.dueAt,
+        repeatMode: t.recurrenceRule?.mode ?? null,
+        nextDueAt,
+        rollingDue,
+        pinnedToday: pinnedIds.has(t.id),
+        createdAt: t.createdAt,
+      };
+    });
 
   const streamCards = streams.map((s) => {
     const targetPct = totalWeight > 0 ? (s.weight / totalWeight) * 100 : 0;
@@ -422,17 +446,54 @@ export async function pickForToday(
       .filter((i) => i.refType === MyDayRefType.flex && i.source === MyDaySource.manual)
       .map((i) => i.refId),
   );
+  // Manual rolling pins are occurrence refs — map to task ids so we don't re-suggest.
+  const manualOccIds = items
+    .filter((i) => i.refType === MyDayRefType.occurrence && i.source === MyDaySource.manual)
+    .map((i) => i.refId);
+  if (manualOccIds.length > 0) {
+    const occTasks = await prisma.taskOccurrence.findMany({
+      where: { id: { in: manualOccIds } },
+      select: { taskId: true },
+    });
+    for (const o of occTasks) keptIds.add(o.taskId);
+  }
+
   // When swapping, the other suggestions stay, so they can't be picked again either.
   for (const i of items) {
     if (opts.swapTaskId && i.refType === MyDayRefType.flex) excluded.add(i.refId);
+  }
+  if (opts.swapTaskId) {
+    const otherOccIds = items
+      .filter((i) => i.refType === MyDayRefType.occurrence && i.refId)
+      .map((i) => i.refId);
+    if (otherOccIds.length > 0) {
+      const occTasks = await prisma.taskOccurrence.findMany({
+        where: { id: { in: otherOccIds } },
+        select: { taskId: true },
+      });
+      for (const o of occTasks) {
+        if (o.taskId !== opts.swapTaskId) excluded.add(o.taskId);
+      }
+    }
   }
 
   const eligible = streams
     .map((s) => ({
       stream: s,
       tasks: s.tasks
-        .map((t, position) => ({ ...t, listId: s.id, position }))
-        .filter((t) => t.kind === "flex" && !keptIds.has(t.id) && !excluded.has(t.id)),
+        .map((t, position) => ({
+          ...t,
+          listId: s.id,
+          position,
+          // Rolling due uses nextDueAt as the urgency signal for scoring.
+          dueAt: t.dueAt ?? t.nextDueAt ?? null,
+        }))
+        .filter((t) => {
+          if (keptIds.has(t.id) || excluded.has(t.id)) return false;
+          if (t.kind === "flex") return true;
+          // Due rolling work can be suggested; habit/fixed land on My Day themselves.
+          return t.repeatMode === "rolling" && Boolean(t.rollingDue);
+        }),
     }))
     .filter((s) => s.tasks.length > 0);
 
@@ -458,6 +519,25 @@ export async function pickForToday(
         source: MyDaySource.suggested,
       },
     });
+    // Rolling suggestions are occurrence pins keyed by occurrence id — clear via task.
+    const swapOcc = await prisma.taskOccurrence.findMany({
+      where: {
+        taskId: opts.swapTaskId,
+        status: { in: [OccurrenceStatus.pending, OccurrenceStatus.snoozed] },
+      },
+      select: { id: true },
+    });
+    if (swapOcc.length > 0) {
+      await prisma.myDayItem.deleteMany({
+        where: {
+          userId,
+          date: day,
+          refType: MyDayRefType.occurrence,
+          refId: { in: swapOcc.map((o) => o.id) },
+          source: MyDaySource.suggested,
+        },
+      });
+    }
   }
 
   const max = await prisma.myDayItem.aggregate({
@@ -470,26 +550,30 @@ export async function pickForToday(
   for (const { stream, tasks } of chosen) {
     const best = [...tasks].sort((a, b) => scoreTask(b, day) - scoreTask(a, day))[0];
     sortOrder += 1;
-    await prisma.myDayItem.upsert({
-      where: {
-        userId_date_refType_refId: {
+    if (best.repeatMode === "rolling") {
+      await setRollingTaskOnMyDay(userId, best.id, day, true, MyDaySource.suggested);
+    } else {
+      await prisma.myDayItem.upsert({
+        where: {
+          userId_date_refType_refId: {
+            userId,
+            date: day,
+            refType: MyDayRefType.flex,
+            refId: best.id,
+          },
+        },
+        create: {
           userId,
           date: day,
           refType: MyDayRefType.flex,
           refId: best.id,
+          pinned: true,
+          sortOrder,
+          source: MyDaySource.suggested,
         },
-      },
-      create: {
-        userId,
-        date: day,
-        refType: MyDayRefType.flex,
-        refId: best.id,
-        pinned: true,
-        sortOrder,
-        source: MyDaySource.suggested,
-      },
-      update: {},
-    });
+        update: {},
+      });
+    }
     picks.push({
       taskId: best.id,
       title: best.title,

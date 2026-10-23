@@ -265,6 +265,10 @@ export type StreamTask = {
   estimatedMinutes?: number | null;
   dueAt?: string | null;
   repeatMode: "habit" | "rolling" | "fixed" | null;
+  /** ISO — when the next rolling cycle becomes available. */
+  nextDueAt?: string | null;
+  /** Rolling and nextDueAt ≤ today (ready to pick up). */
+  rollingDue?: boolean;
   pinnedToday: boolean;
   createdAt: string;
 };
@@ -313,6 +317,8 @@ export type RecurrenceInput = {
   windowStart?: string | null;
   windowEnd?: string | null;
   activeMonths: number[];
+  /** ISO datetime; rolling tasks stay off My Day until this day. */
+  nextDueAt?: string | null;
 };
 
 export type StreamOptions = {
