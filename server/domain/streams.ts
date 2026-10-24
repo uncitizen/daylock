@@ -26,6 +26,7 @@ export const STREAM_PRESETS = [
   { name: "House", color: "#b7791f", weight: 10 },
   { name: "Work", color: "#2b6cb0", weight: 20 },
   { name: "App", color: "#6b5bd2", weight: 20 },
+  { name: "Trips", color: "#0f766e", weight: 15 },
 ];
 
 export type StreamStatus = "needs_you" | "drifting" | "on_track";
@@ -196,6 +197,7 @@ export async function getStreamsBoard(userId: string, date: Date) {
         id: t.id,
         title: t.title,
         goalId: t.goalId,
+        templateId: t.templateId,
         sortOrder: t.sortOrder,
         kind: t.kind,
         estimatedMinutes: t.estimatedMinutes,

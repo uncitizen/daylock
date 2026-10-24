@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { addMinutes, format, getDay } from "date-fns";
-import { clientApi, type RecurrenceInput, type StreamOptions, type Task } from "@/lib/client-api";
+import { clientApi, type RecurrenceInput, type StreamOptions, type Task, type Template } from "@/lib/client-api";
 
 type Mode =
   | { kind: "create"; listId?: string; goalId?: string | null; title?: string; pinDate?: string }
@@ -55,10 +55,12 @@ function toLocalTime(iso: string) {
 export function TaskEditor({ mode, onDone, onCancel }: Props) {
   const editing = mode.kind === "edit";
   const [options, setOptions] = useState<StreamOptions | null>(null);
+  const [templates, setTemplates] = useState<Template[]>([]);
   const [loaded, setLoaded] = useState(!editing);
   const [title, setTitle] = useState(mode.kind === "create" ? (mode.title ?? "") : "");
   const [listId, setListId] = useState(mode.kind === "create" ? (mode.listId ?? "") : "");
   const [goalId, setGoalId] = useState(mode.kind === "create" ? (mode.goalId ?? "") : "");
+  const [templateId, setTemplateId] = useState("");
   const [estimate, setEstimate] = useState("");
   const [date, setDate] = useState("");
   const [time, setTime] = useState("");
@@ -103,9 +105,13 @@ export function TaskEditor({ mode, onDone, onCancel }: Props) {
     let alive = true;
     void (async () => {
       try {
-        const opts = await clientApi.streamOptions();
+        const [opts, tmpl] = await Promise.all([
+          clientApi.streamOptions(),
+          clientApi.getTemplates(),
+        ]);
         if (!alive) return;
         setOptions(opts);
+        setTemplates(tmpl.templates);
         if (mode.kind === "create") {
           setListId((prev) => prev || opts.inboxId);
           return;
@@ -188,7 +194,7 @@ export function TaskEditor({ mode, onDone, onCancel }: Props) {
         repeat === "none" && date ? new Date(`${date}T${time || "00:00"}:00`).toISOString() : null;
       const estimatedMinutes = estimate ? Number(estimate) : null;
       if (mode.kind === "create") {
-        await clientApi.createTask({
+        const { task: newTask } = await clientApi.createTask({
           title: trimmed,
           // Leave Inbox implicit so a #stream tag in the title can still file it.
           listId: listId && listId !== options?.inboxId ? listId : undefined,
@@ -200,6 +206,10 @@ export function TaskEditor({ mode, onDone, onCancel }: Props) {
             : { kind: "template", recurrence: buildRecurrence() }),
           ...(mode.pinDate && repeat === "none" ? { pinToMyDay: true, pinDate: mode.pinDate } : {}),
         });
+        // Apply template if selected
+        if (templateId) {
+          await clientApi.applyTemplate(newTask.id, templateId);
+        }
       } else {
         await clientApi.updateTask(mode.taskId, {
           title: trimmed,
@@ -283,6 +293,23 @@ export function TaskEditor({ mode, onDone, onCancel }: Props) {
             onChange={(e) => setEstimate(e.target.value)}
           />
         </label>
+        {!editing && templates.length > 0 && (
+          <label className="flex items-center gap-2">
+            Template
+            <select
+              className={field}
+              value={templateId}
+              onChange={(e) => setTemplateId(e.target.value)}
+            >
+              <option value="">No template</option>
+              {templates.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
       </div>
 
       <fieldset className="space-y-2">

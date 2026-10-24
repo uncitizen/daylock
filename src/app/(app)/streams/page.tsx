@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { format } from "date-fns";
 import { TaskTitle } from "@/components/TaskTitle";
 import { TrashButton } from "@/components/TrashButton";
+import { TaskChecklist } from "@/components/TaskChecklist";
 import { StreamDots, guessStream, type StreamOption } from "@/components/StreamDots";
 import { TaskEditor } from "@/components/TaskEditor";
 import {
@@ -74,6 +75,7 @@ export default function StreamsPage() {
   const [capture, setCapture] = useState("");
   const [newStream, setNewStream] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [checklistId, setChecklistId] = useState<string | null>(null);
   const [creating, setCreating] = useState<Creating | null>(null);
   const weightTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
@@ -483,6 +485,8 @@ export default function StreamsPage() {
               onError={setError}
               editingId={editingId}
               setEditingId={setEditingId}
+              checklistId={checklistId}
+              setChecklistId={setChecklistId}
               creating={creating?.key === s.id ? creating : null}
               setCreating={setCreating}
               reload={() => reload(true)}
@@ -533,6 +537,8 @@ type LaneProps = {
   onError: (msg: string | null) => void;
   editingId: string | null;
   setEditingId: (id: string | null) => void;
+  checklistId: string | null;
+  setChecklistId: (id: string | null) => void;
   creating: Creating | null;
   setCreating: (c: Creating | null) => void;
   reload: () => Promise<void>;
@@ -555,6 +561,8 @@ function StreamLane({
   onError,
   editingId,
   setEditingId,
+  checklistId,
+  setChecklistId,
   creating,
   setCreating,
   reload,
@@ -691,6 +699,29 @@ function StreamLane({
         active={editingId === t.id}
         onClick={() => setEditingId(editingId === t.id ? null : t.id)}
       />
+      {full && t.templateId && (
+        <button
+          type="button"
+          onClick={() => setChecklistId(checklistId === t.id ? null : t.id)}
+          aria-label={checklistId === t.id ? "Hide checklist" : "Show checklist"}
+          aria-expanded={checklistId === t.id}
+          title="Checklist"
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded text-muted hover:bg-line/40 hover:text-ink"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            className="h-4 w-4"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.75"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden
+          >
+            <path d="M3 6h18M3 12h18M3 18h18" />
+          </svg>
+        </button>
+      )}
       {editingId === t.id && (
         <div className="basis-full">
           <TaskEditor
@@ -701,6 +732,11 @@ function StreamLane({
               void reload();
             }}
           />
+        </div>
+      )}
+      {checklistId === t.id && (
+        <div className="basis-full border-t border-line/60 pt-2 mt-2">
+          <TaskChecklist taskId={t.id} templateId={t.templateId} onError={onError} />
         </div>
       )}
     </li>

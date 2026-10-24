@@ -8,6 +8,7 @@ const links = [
   { href: "/", label: "My Day", match: ["/"] },
   // The Inbox is a lane on Streams; its full page lives under the same tab.
   { href: "/streams", label: "Streams", match: ["/streams", "/inbox"] },
+  { href: "/templates", label: "Templates", match: ["/templates"] },
   // Kept apart from tasks and streams on purpose.
   { href: "/shopping", label: "Shopping", match: ["/shopping"] },
 ];

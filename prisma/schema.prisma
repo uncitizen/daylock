@@ -191,6 +191,7 @@ model Task {
   id               String        @id @default(cuid())
   listId           String
   goalId           String?
+  templateId       String?
   sortOrder        Int           @default(0)
   title            String
   notes            String?       @db.Text
@@ -208,6 +209,7 @@ model Task {
   goal           Goal?            @relation(fields: [goalId], references: [id], onDelete: SetNull)
   recurrenceRule RecurrenceRule?
   occurrences    TaskOccurrence[]
+  checklistItems ChecklistItem[]
 
   @@index([listId])
   @@index([goalId])
@@ -437,4 +439,45 @@ model ShoppingItem {
   @@index([workspaceId, clearedAt])
   @@index([storeId])
   @@map("shopping_items")
+}
+
+// ─── Templates & Checklists ───────────────────────────────────
+
+model TaskTemplate {
+  id        String                   @id @default(cuid())
+  name      String
+  sortOrder Int                      @default(0)
+  createdAt DateTime                 @default(now())
+  updatedAt DateTime                 @updatedAt
+
+  items TemplateChecklistItem[]
+
+  @@map("task_templates")
+}
+
+model TemplateChecklistItem {
+  id         String       @id @default(cuid())
+  templateId String
+  title      String
+  sortOrder  Int          @default(0)
+  createdAt  DateTime     @default(now())
+
+  template TaskTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  @@index([templateId])
+  @@map("template_checklist_items")
+}
+
+model ChecklistItem {
+  id        String   @id @default(cuid())
+  taskId    String
+  title     String
+  checked   Boolean  @default(false)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([taskId])
+  @@map("checklist_items")
 }
