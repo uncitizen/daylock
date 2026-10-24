@@ -117,6 +117,48 @@ export const clientApi = {
     api<{ synced: number; error?: string | null }>("/api/v1/sync/google-calendar", {
       method: "POST",
     }),
+  // Templates
+  getTemplates: () => api<{ templates: Template[] }>("/api/v1/templates"),
+  createTemplate: (body: { name: string; items?: string[] }) =>
+    api<{ template: Template }>("/api/v1/templates", { method: "POST", body: JSON.stringify(body) }),
+  updateTemplate: (id: string, body: { name?: string; sortOrder?: number }) =>
+    api<{ template: Template }>(`/api/v1/templates/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
+  deleteTemplate: (id: string) =>
+    api<{ success: boolean }>(`/api/v1/templates/${id}`, { method: "DELETE" }),
+  addTemplateItem: (templateId: string, title: string) =>
+    api<{ item: TemplateItem }>(`/api/v1/templates/${templateId}/items`, {
+      method: "POST",
+      body: JSON.stringify({ title }),
+    }),
+  updateTemplateItem: (templateId: string, itemId: string, body: { title?: string; sortOrder?: number }) =>
+    api<{ item: TemplateItem }>(`/api/v1/templates/${templateId}/items/${itemId}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
+  deleteTemplateItem: (templateId: string, itemId: string) =>
+    api<{ success: boolean }>(`/api/v1/templates/${templateId}/items/${itemId}`, { method: "DELETE" }),
+  // Task checklists
+  getTaskChecklist: (taskId: string) =>
+    api<{ items: ChecklistItem[] }>(`/api/v1/tasks/${taskId}/checklist`),
+  addChecklistItem: (taskId: string, title: string) =>
+    api<{ item: ChecklistItem }>(`/api/v1/tasks/${taskId}/checklist`, {
+      method: "POST",
+      body: JSON.stringify({ title }),
+    }),
+  updateChecklistItem: (taskId: string, itemId: string, body: { title?: string; checked?: boolean; sortOrder?: number }) =>
+    api<{ item: ChecklistItem }>(`/api/v1/tasks/${taskId}/checklist/${itemId}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
+  deleteChecklistItem: (taskId: string, itemId: string) =>
+    api<{ success: boolean }>(`/api/v1/tasks/${taskId}/checklist/${itemId}`, { method: "DELETE" }),
+  applyTemplate: (taskId: string, templateId: string) =>
+    api<{ items: ChecklistItem[] }>(`/api/v1/tasks/${taskId}/apply-template`, {
+      method: "POST",
+      body: JSON.stringify({ templateId }),
+    }),
+  updateTemplateFromTask: (taskId: string) =>
+    api<{ template: Template }>(`/api/v1/tasks/${taskId}/update-template`, { method: "POST" }),
 };
 
 export type TaskAnalysis = {
@@ -260,6 +302,7 @@ export type StreamTask = {
   id: string;
   title: string;
   goalId: string | null;
+  templateId: string | null;
   sortOrder: number;
   kind: string;
   estimatedMinutes?: number | null;
@@ -351,4 +394,30 @@ export const shoppingApi = {
     api("/api/v1/shopping/stores", json("POST", body)),
   updateStore: (id: string, body: { name?: string; move?: "up" | "down"; archived?: true }) =>
     api(`/api/v1/shopping/stores/${id}`, json("PATCH", body)),
+};
+
+export type Template = {
+  id: string;
+  name: string;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+  items: TemplateItem[];
+};
+
+export type TemplateItem = {
+  id: string;
+  templateId: string;
+  title: string;
+  sortOrder: number;
+  createdAt: string;
+};
+
+export type ChecklistItem = {
+  id: string;
+  taskId: string;
+  title: string;
+  checked: boolean;
+  sortOrder: number;
+  createdAt: string;
 };
