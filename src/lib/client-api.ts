@@ -225,6 +225,7 @@ export type TimelineItem =
       source: "manual" | "suggested";
       priority?: string;
       dueAt?: string | null;
+      templateId?: string | null;
     };
 
 export type CompletedItem =
@@ -262,6 +263,7 @@ export type Suggestion = {
     estimatedMinutes?: number | null;
     attentionCost: string;
     dueAt?: string | null;
+    templateId?: string | null;
   }[];
 };
 
@@ -272,6 +274,7 @@ export type FlexTask = {
   estimatedMinutes?: number | null;
   dueAt?: string | null;
   list: { id: string; name: string; color: string | null; isInbox: boolean };
+  templateId?: string | null;
 };
 
 export type Task = {

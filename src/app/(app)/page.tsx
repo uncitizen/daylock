@@ -13,6 +13,7 @@ import { TaskTitle } from "@/components/TaskTitle";
 import { TrashButton } from "@/components/TrashButton";
 import { StreamDots, StreamTag, type StreamOption } from "@/components/StreamDots";
 import { TaskEditor } from "@/components/TaskEditor";
+import { TaskChecklist } from "@/components/TaskChecklist";
 import {
   clientApi,
   type CompletedItem,
@@ -83,6 +84,7 @@ export default function MyDayPage() {
   const [streams, setStreams] = useState<StreamOption[]>([]);
   const [streamPickFor, setStreamPickFor] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [checklistId, setChecklistId] = useState<string | null>(null);
   const [composerMore, setComposerMore] = useState(false);
 
   async function reload(quiet = false) {
@@ -218,6 +220,34 @@ export default function MyDayPage() {
     );
   }
 
+  function checklistButton(taskId: string, templateId?: string | null) {
+    if (!templateId) return null;
+    const active = checklistId === taskId;
+    return (
+      <button
+        type="button"
+        onClick={() => setChecklistId(active ? null : taskId)}
+        aria-label={active ? "Hide checklist" : "Show checklist"}
+        aria-expanded={active}
+        title="Checklist"
+        className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded text-muted hover:bg-line/40 hover:text-ink"
+      >
+        <svg
+          viewBox="0 0 24 24"
+          className="h-[18px] w-[18px]"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.75"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden
+        >
+          <path d="M3 6h18M3 12h18M3 18h18" />
+        </svg>
+      </button>
+    );
+  }
+
   function editor(taskId: string) {
     if (editingId !== taskId) return null;
     return (
@@ -230,6 +260,15 @@ export default function MyDayPage() {
             void reload(true);
           }}
         />
+      </div>
+    );
+  }
+
+  function checklist(taskId: string, templateId?: string | null) {
+    if (checklistId !== taskId || !templateId) return null;
+    return (
+      <div className="mt-3 border-t border-line/60 pt-3">
+        <TaskChecklist taskId={taskId} templateId={templateId} onError={setError} />
       </div>
     );
   }
@@ -705,12 +744,14 @@ export default function MyDayPage() {
                       </>
                     )}
                     {editButton(item.id)}
+                    {checklistButton(item.id, item.templateId)}
                     <div className="border-l border-line pl-0.5">
                       <TrashButton onClick={() => trashTask(item.id)} />
                     </div>
                   </div>
                 </div>
                 {editor(item.id)}
+                {checklist(item.id, item.templateId)}
               </article>
             );
           })}
