@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { updateChecklistItem, deleteChecklistItem } from "@/server/domain/templates";
+import { updateChecklistItem, deleteChecklistItem } from "@server/domain/templates";
 
 type Params = { params: Promise<{ id: string; itemId: string }> };
 

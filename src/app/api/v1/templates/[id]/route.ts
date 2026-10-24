@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { updateTemplate, deleteTemplate } from "@/server/domain/templates";
+import { updateTemplate, deleteTemplate } from "@server/domain/templates";
 
 type Params = { params: Promise<{ id: string }> };
 

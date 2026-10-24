@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { getTemplates, createTemplate } from "@/server/domain/templates";
+import { getTemplates, createTemplate } from "@server/domain/templates";
 
 export async function GET() {
   const session = await auth();
