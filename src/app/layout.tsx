@@ -3,16 +3,17 @@ import { Fraunces, Source_Sans_3 } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/Providers";
 
+// Simplified font configuration for Next.js 16 Turbopack compatibility
 const display = Fraunces({
   subsets: ["latin"],
   variable: "--font-display",
-  weight: ["500", "600", "700"],
+  weight: "700",
 });
 
 const body = Source_Sans_3({
   subsets: ["latin"],
   variable: "--font-body",
-  weight: ["400", "500", "600", "700"],
+  weight: "400",
 });
 
 export const metadata: Metadata = {
