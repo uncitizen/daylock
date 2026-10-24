@@ -378,7 +378,7 @@ export default function StreamsPage() {
             className="rounded border border-line px-3 py-2 text-sm"
             title="Stream, goal, date or repeat"
           >
-            More…
+            Details
           </button>
         </form>
         {creating?.key === "inbox" && (
@@ -424,16 +424,14 @@ export default function StreamsPage() {
                     onClick={() => setEditingId(editingId === t.id ? null : t.id)}
                   />
                   {editingId === t.id && (
-                    <div className="basis-full" onClick={(e) => e.stopPropagation()}>
-                      <TaskEditor
-                        mode={{ kind: "edit", taskId: t.id }}
-                        onCancel={() => setEditingId(null)}
-                        onDone={() => {
-                          setEditingId(null);
-                          void reload(true);
-                        }}
-                      />
-                    </div>
+                    <TaskEditor
+                      mode={{ kind: "edit", taskId: t.id }}
+                      onCancel={() => setEditingId(null)}
+                      onDone={() => {
+                        setEditingId(null);
+                        void reload(true);
+                      }}
+                    />
                   )}
                 </li>
               );
@@ -723,16 +721,14 @@ function StreamLane({
         </button>
       )}
       {editingId === t.id && (
-        <div className="basis-full">
-          <TaskEditor
-            mode={{ kind: "edit", taskId: t.id }}
-            onCancel={() => setEditingId(null)}
-            onDone={() => {
-              setEditingId(null);
-              void reload();
-            }}
-          />
-        </div>
+        <TaskEditor
+          mode={{ kind: "edit", taskId: t.id }}
+          onCancel={() => setEditingId(null)}
+          onDone={() => {
+            setEditingId(null);
+            void reload();
+          }}
+        />
       )}
       {checklistId === t.id && (
         <div className="basis-full border-t border-line/60 pt-2 mt-2">
@@ -861,7 +857,7 @@ function StreamLane({
               className="rounded border border-line px-3 py-1.5 text-sm"
               title="Date or repeat"
             >
-              More…
+              Details
             </button>
           </form>
           {creating && (
