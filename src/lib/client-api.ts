@@ -33,6 +33,7 @@ export const clientApi = {
     id: string,
     body: {
       title?: string;
+      notes?: string | null;
       archived?: boolean;
       listId?: string;
       goalId?: string | null;

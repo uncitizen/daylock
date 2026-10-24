@@ -58,6 +58,7 @@ export function TaskEditor({ mode, onDone, onCancel }: Props) {
   const [templates, setTemplates] = useState<Template[]>([]);
   const [loaded, setLoaded] = useState(!editing);
   const [title, setTitle] = useState(mode.kind === "create" ? (mode.title ?? "") : "");
+  const [notes, setNotes] = useState("");
   const [listId, setListId] = useState(mode.kind === "create" ? (mode.listId ?? "") : "");
   const [goalId, setGoalId] = useState(mode.kind === "create" ? (mode.goalId ?? "") : "");
   const [templateId, setTemplateId] = useState("");
@@ -78,6 +79,7 @@ export function TaskEditor({ mode, onDone, onCancel }: Props) {
 
   function fillFromTask(task: Task & { listId: string; goalId: string | null }) {
     setTitle(task.title);
+    setNotes(task.notes ?? "");
     setListId(task.listId);
     setGoalId(task.goalId ?? "");
     setEstimate(task.estimatedMinutes ? String(task.estimatedMinutes) : "");
@@ -193,9 +195,11 @@ export function TaskEditor({ mode, onDone, onCancel }: Props) {
       const dueAt =
         repeat === "none" && date ? new Date(`${date}T${time || "00:00"}:00`).toISOString() : null;
       const estimatedMinutes = estimate ? Number(estimate) : null;
+      const notesValue = notes.trim() || null;
       if (mode.kind === "create") {
         const { task: newTask } = await clientApi.createTask({
           title: trimmed,
+          notes: notesValue,
           // Leave Inbox implicit so a #stream tag in the title can still file it.
           listId: listId && listId !== options?.inboxId ? listId : undefined,
           goalId: goalId || undefined,
@@ -213,6 +217,7 @@ export function TaskEditor({ mode, onDone, onCancel }: Props) {
       } else {
         await clientApi.updateTask(mode.taskId, {
           title: trimmed,
+          notes: notesValue,
           listId,
           goalId: goalId || null,
           estimatedMinutes,
@@ -246,6 +251,15 @@ export function TaskEditor({ mode, onDone, onCancel }: Props) {
         maxLength={500}
         autoFocus={!editing}
         onChange={(e) => setTitle(e.target.value)}
+      />
+
+      <textarea
+        className={`${field} w-full resize-y`}
+        placeholder="Description (optional)"
+        value={notes}
+        maxLength={10000}
+        rows={3}
+        onChange={(e) => setNotes(e.target.value)}
       />
 
       <div className="flex flex-wrap gap-3">
