@@ -699,7 +699,7 @@ function StreamLane({
         active={editingId === t.id}
         onClick={() => setEditingId(editingId === t.id ? null : t.id)}
       />
-      {full && t.templateId && (
+      {t.templateId && (
         <button
           type="button"
           onClick={() => setChecklistId(checklistId === t.id ? null : t.id)}

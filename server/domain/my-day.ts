@@ -213,6 +213,7 @@ export async function getMyDay(userId: string, date: Date) {
             source: i.source,
             priority: task.priority,
             dueAt: task.dueAt,
+            templateId: task.templateId,
           },
         ];
       }),
@@ -254,6 +255,7 @@ export async function getMyDay(userId: string, date: Date) {
           estimatedMinutes: t.estimatedMinutes,
           attentionCost: t.attentionCost,
           dueAt: t.dueAt,
+          templateId: t.templateId,
         })),
       };
     });
