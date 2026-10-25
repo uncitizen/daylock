@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "@server/db/client";
 import { createTask, getInboxForUser } from "@server/domain/tasks";
 import { patchMyDay } from "@server/domain/my-day";
+import { pinToMyDay } from "@/lib/mcp-tools";
 
 export function createMcpServer(userId: string) {
   const mcpServer = new McpServer({
@@ -366,6 +367,29 @@ export function createMcpServer(userId: string) {
         ],
       };
     },
+  );
+
+  // ─── Pin to My Day ────────────────────────────────────────────────
+  mcpServer.registerTool(
+    "pin_to_my_day",
+    {
+      title: "Pin a task to My Day",
+      description:
+        "Pin an existing task to My Day (or unpin it with pinned: false). Use list_tasks to find task IDs.",
+      inputSchema: {
+        taskId: z.string().describe("Task ID to pin"),
+        date: z
+          .string()
+          .optional()
+          .describe("Date in YYYY-MM-DD format (defaults to today)"),
+        pinned: z
+          .boolean()
+          .optional()
+          .default(true)
+          .describe("true to pin, false to unpin"),
+      },
+    },
+    (args) => pinToMyDay(userId, args),
   );
 
   return mcpServer;

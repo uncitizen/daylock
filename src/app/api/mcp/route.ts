@@ -152,6 +152,27 @@ async function handleMcpRequest(req: NextRequest) {
                 },
               },
             },
+            {
+              name: "pin_to_my_day",
+              description:
+                "Pin an existing task to My Day (or unpin it with pinned: false). Use list_tasks to find task IDs.",
+              inputSchema: {
+                type: "object",
+                properties: {
+                  taskId: { type: "string", description: "Task ID to pin" },
+                  date: {
+                    type: "string",
+                    description: "Date in YYYY-MM-DD format (defaults to today)",
+                  },
+                  pinned: {
+                    type: "boolean",
+                    description: "true to pin, false to unpin",
+                    default: true,
+                  },
+                },
+                required: ["taskId"],
+              },
+            },
           ],
         };
         break;
@@ -162,7 +183,7 @@ async function handleMcpRequest(req: NextRequest) {
         
         try {
           // Import the tool handlers directly
-          const { listTasks, createTask, completeTask, updateTask, listStreams, getMyDay } = await import("@/lib/mcp-tools");
+          const { listTasks, createTask, completeTask, updateTask, listStreams, getMyDay, pinToMyDay } = await import("@/lib/mcp-tools");
           
           let toolResult;
           
@@ -184,6 +205,9 @@ async function handleMcpRequest(req: NextRequest) {
               break;
             case "get_my_day":
               toolResult = await getMyDay(userId, toolArgs);
+              break;
+            case "pin_to_my_day":
+              toolResult = await pinToMyDay(userId, toolArgs);
               break;
             default:
               return NextResponse.json(
