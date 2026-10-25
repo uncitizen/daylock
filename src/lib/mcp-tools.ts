@@ -1,3 +1,5 @@
+import { startOfDay } from "date-fns";
+import { formatInTimeZone } from "date-fns-tz";
 import { prisma } from "@server/db/client";
 import { createTask as createTaskDomain, getInboxForUser } from "@server/domain/tasks";
 import { patchMyDay } from "@server/domain/my-day";
@@ -275,6 +277,85 @@ export async function getMyDay(userId: string, args: { date?: string }) {
               taskTitle: task?.title,
             };
           }),
+        }),
+      },
+    ],
+  };
+}
+
+function errorResult(error: string) {
+  return {
+    content: [{ type: "text" as const, text: JSON.stringify({ error }) }],
+  };
+}
+
+// "Today" in the user's own time zone, so evening pins don't land on tomorrow.
+async function todayForUser(userId: string) {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { timezone: true },
+  });
+  return formatInTimeZone(new Date(), user?.timezone ?? "America/New_York", "yyyy-MM-dd");
+}
+
+export async function pinToMyDay(
+  userId: string,
+  args: { taskId: string; date?: string; pinned?: boolean }
+) {
+  const pinned = args.pinned ?? true;
+  const date = args.date || (await todayForUser(userId));
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    return errorResult("Date must be in YYYY-MM-DD format");
+  }
+
+  const task = await prisma.task.findFirst({
+    where: {
+      id: args.taskId,
+      archivedAt: null,
+      list: { workspace: { memberships: { some: { userId } } } },
+    },
+    include: { recurrenceRule: true },
+  });
+
+  if (!task) return errorResult("Task not found");
+  if (pinned && task.completedAt) return errorResult("Task is already completed");
+
+  if (task.kind === "template" && task.recurrenceRule?.mode !== "rolling") {
+    // Habit/fixed tasks show on My Day through that date's occurrence.
+    const occurrence = await prisma.taskOccurrence.findFirst({
+      where: { taskId: task.id, date: startOfDay(new Date(date + "T00:00:00")) },
+    });
+    if (!occurrence) {
+      return errorResult(`This recurring task has no occurrence on ${date}`);
+    }
+    await patchMyDay(userId, {
+      date,
+      pin: { refType: "occurrence", refId: occurrence.id, pinned },
+    });
+  } else {
+    // Flex tasks pin by task id; patchMyDay routes rolling templates to an occurrence.
+    try {
+      await patchMyDay(userId, {
+        date,
+        pin: { refType: "flex", refId: task.id, pinned },
+      });
+    } catch (error) {
+      if (error instanceof Error && error.message === "ROLLING_NOT_AVAILABLE") {
+        return errorResult("This recurring task can't be picked up right now");
+      }
+      throw error;
+    }
+  }
+
+  return {
+    content: [
+      {
+        type: "text" as const,
+        text: JSON.stringify({
+          success: true,
+          task: { id: task.id, title: task.title },
+          date,
+          pinnedToMyDay: pinned,
         }),
       },
     ],
