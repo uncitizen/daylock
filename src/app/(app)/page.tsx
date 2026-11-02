@@ -129,8 +129,14 @@ export default function MyDayPage() {
     setTimeline((prev) =>
       prev.filter((item) => !(item.type === "occurrence" && item.id === occurrenceId)),
     );
-    await clientApi.completeTask(taskId, occurrenceId);
-    await reload();
+    setError(null);
+    try {
+      await clientApi.completeTask(taskId, occurrenceId);
+      await reload();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not complete");
+      await reload(true);
+    }
   }
 
   async function completeFlex(taskId: string) {
@@ -138,8 +144,14 @@ export default function MyDayPage() {
       prev.filter((item) => !(item.type === "flex" && item.id === taskId)),
     );
     setFlexAvailable((prev) => prev.filter((t) => t.id !== taskId));
-    await clientApi.completeTask(taskId);
-    await reload();
+    setError(null);
+    try {
+      await clientApi.completeTask(taskId);
+      await reload();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not complete");
+      await reload(true);
+    }
   }
 
   async function doSkip(
@@ -158,11 +170,17 @@ export default function MyDayPage() {
   }
 
   async function pinFlex(taskId: string, pinned: boolean) {
-    await clientApi.patchMyDay({
-      date,
-      pin: { refType: "flex", refId: taskId, pinned },
-    });
-    await reload(true);
+    setError(null);
+    try {
+      await clientApi.patchMyDay({
+        date,
+        pin: { refType: "flex", refId: taskId, pinned },
+      });
+      await reload(true);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not pin");
+      await reload(true);
+    }
   }
 
   async function moveToStream(taskId: string, listId: string) {
