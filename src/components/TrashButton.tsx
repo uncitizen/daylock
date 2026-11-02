@@ -13,7 +13,7 @@ export function TrashButton({ onClick, className = "" }: Props) {
       aria-label="Move to trash"
       title="Move to trash"
       onClick={onClick}
-      className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded text-muted transition-colors hover:bg-danger/10 hover:text-danger focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-danger ${className}`}
+      className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded text-muted transition-colors hover:bg-danger/10 hover:text-danger focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-danger ${className}`}
     >
       <svg
         aria-hidden
