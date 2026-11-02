@@ -14,6 +14,7 @@ import { TrashButton } from "@/components/TrashButton";
 import { StreamDots, StreamTag, type StreamOption } from "@/components/StreamDots";
 import { TaskEditor } from "@/components/TaskEditor";
 import { TaskChecklist } from "@/components/TaskChecklist";
+import { TaskDetailModal } from "@/components/TaskDetailModal";
 import {
   clientApi,
   type CompletedItem,
@@ -93,6 +94,8 @@ export default function MyDayPage() {
   const [streamPickFor, setStreamPickFor] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [checklistId, setChecklistId] = useState<string | null>(null);
+  const [modalTaskId, setModalTaskId] = useState<string | null>(null);
+  const [modalMode, setModalMode] = useState<"view" | "edit">("view");
   const [composerMore, setComposerMore] = useState(false);
   const [streamBoard, setStreamBoard] = useState<StreamsBoard | null>(null);
   const [taskSearch, setTaskSearch] = useState("");
@@ -235,19 +238,40 @@ export default function MyDayPage() {
   }
 
   function editButton(taskId: string) {
-    const active = editingId === taskId;
     return (
       <button
         type="button"
-        onClick={() => setEditingId(active ? null : taskId)}
-        aria-label={active ? "Close editor" : "Edit task"}
-        aria-expanded={active}
+        onClick={() => {
+          setModalTaskId(taskId);
+          setModalMode("edit");
+        }}
+        aria-label="Edit task"
         title="Edit: stream, goal, date, repeat"
         className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded text-muted hover:bg-line/40 hover:text-ink"
       >
         <svg viewBox="0 0 24 24" className="h-[18px] w-[18px]" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
           <path d="M4 20h4L19 9l-4-4L4 16v4z" />
           <path d="M13.5 6.5l4 4" />
+        </svg>
+      </button>
+    );
+  }
+
+  function viewButton(taskId: string) {
+    return (
+      <button
+        type="button"
+        onClick={() => {
+          setModalTaskId(taskId);
+          setModalMode("view");
+        }}
+        aria-label="View task details"
+        title="View details"
+        className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded text-muted hover:bg-line/40 hover:text-ink"
+      >
+        <svg viewBox="0 0 24 24" className="h-[18px] w-[18px]" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+          <circle cx="12" cy="12" r="3" />
         </svg>
       </button>
     );
@@ -281,21 +305,6 @@ export default function MyDayPage() {
     );
   }
 
-  function editor(taskId: string) {
-    if (editingId !== taskId) return null;
-    return (
-      <div className="mt-3">
-        <TaskEditor
-          mode={{ kind: "edit", taskId }}
-          onCancel={() => setEditingId(null)}
-          onDone={() => {
-            setEditingId(null);
-            void reload(true);
-          }}
-        />
-      </div>
-    );
-  }
 
   function checklist(taskId: string, templateId?: string | null) {
     if (checklistId !== taskId || !templateId) return null;
@@ -705,13 +714,13 @@ export default function MyDayPage() {
                           Skip…
                         </button>
                       )}
+                      {viewButton(item.taskId)}
                       {editButton(item.taskId)}
                       <div className="border-l border-line pl-0.5">
                         <TrashButton onClick={() => trashTask(item.taskId)} />
                       </div>
                     </div>
                   </div>
-                  {editor(item.taskId)}
 
                   {skipFor === item.id && (
                     <div className="mt-3 space-y-2 border-t border-line/50 pt-3 text-sm">
@@ -866,6 +875,7 @@ export default function MyDayPage() {
                         </button>
                       </>
                     )}
+                    {viewButton(item.id)}
                     {editButton(item.id)}
                     {checklistButton(item.id, item.templateId)}
                     <div className="border-l border-line pl-0.5">
@@ -873,7 +883,6 @@ export default function MyDayPage() {
                     </div>
                   </div>
                 </div>
-                {editor(item.id)}
                 {checklist(item.id, item.templateId)}
               </article>
             );
@@ -1061,6 +1070,16 @@ export default function MyDayPage() {
             </ul>
           )}
         </section>
+      )}
+
+      {/* Task Detail Modal */}
+      {modalTaskId && (
+        <TaskDetailModal
+          taskId={modalTaskId}
+          mode={modalMode}
+          onClose={() => setModalTaskId(null)}
+          onUpdate={() => reload(true)}
+        />
       )}
     </div>
   );
