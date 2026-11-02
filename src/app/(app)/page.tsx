@@ -18,9 +18,17 @@ import {
   clientApi,
   type CompletedItem,
   type FlexTask,
+  type StreamTask,
+  type StreamsBoard,
   type Suggestion,
   type TimelineItem,
 } from "@/lib/client-api";
+
+type PinnableCatalogTask = StreamTask & {
+  streamName: string;
+  streamColor: string | null;
+  isInbox: boolean;
+};
 
 function timeLabel(iso?: string | null) {
   if (!iso) return null;
@@ -86,6 +94,8 @@ export default function MyDayPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [checklistId, setChecklistId] = useState<string | null>(null);
   const [composerMore, setComposerMore] = useState(false);
+  const [streamBoard, setStreamBoard] = useState<StreamsBoard | null>(null);
+  const [taskSearch, setTaskSearch] = useState("");
 
   async function reload(quiet = false) {
     if (!quiet) setLoading(true);
@@ -99,6 +109,11 @@ export default function MyDayPage() {
       setStreams(
         data.streams.map((st) => ({ id: st.id, name: st.name, color: st.color ?? "#5c635c" })),
       );
+      try {
+        setStreamBoard(await clientApi.streams(date));
+      } catch {
+        // Search catalog is best-effort; My Day still works without it.
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load");
     } finally {
@@ -340,6 +355,61 @@ export default function MyDayPage() {
     .sort((a, b) => new Date(a.dueAt!).getTime() - new Date(b.dueAt!).getTime());
   const inboxFlex = unpinnedFlex.filter((t) => !isScheduledToday(t.dueAt));
 
+  const onMyDayIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const item of timeline) {
+      if (item.type === "flex") ids.add(item.id);
+      if (item.type === "occurrence") ids.add(item.taskId);
+    }
+    return ids;
+  }, [timeline]);
+
+  const pinnableCatalog = useMemo(() => {
+    if (!streamBoard) return [] as PinnableCatalogTask[];
+    const lanes: {
+      streamName: string;
+      streamColor: string | null;
+      isInbox: boolean;
+      tasks: StreamTask[];
+    }[] = [
+      ...streamBoard.streams.map((s) => ({
+        streamName: s.name,
+        streamColor: s.color,
+        isInbox: false,
+        tasks: s.tasks,
+      })),
+      {
+        streamName: streamBoard.inbox.name,
+        streamColor: null,
+        isInbox: true,
+        tasks: streamBoard.inbox.tasks,
+      },
+    ];
+    return lanes.flatMap((lane) =>
+      lane.tasks
+        .filter((t) => t.kind === "flex" || t.repeatMode === "rolling")
+        .filter((t) => !t.pinnedToday && !onMyDayIds.has(t.id))
+        .map((t) => ({
+          ...t,
+          streamName: lane.streamName,
+          streamColor: lane.streamColor,
+          isInbox: lane.isInbox,
+        })),
+    );
+  }, [streamBoard, onMyDayIds]);
+
+  const searchHits = useMemo(() => {
+    const q = taskSearch.trim().toLowerCase();
+    if (!q) return [] as PinnableCatalogTask[];
+    return pinnableCatalog
+      .filter(
+        (t) =>
+          t.title.toLowerCase().includes(q) ||
+          t.streamName.toLowerCase().includes(q),
+      )
+      .slice(0, 24);
+  }, [pinnableCatalog, taskSearch]);
+
   const planStreams = timeline.flatMap((item) =>
     item.type === "calendar" ? [] : [item.isInbox ? null : item.streamColor],
   );
@@ -369,12 +439,47 @@ export default function MyDayPage() {
     setFlexAvailable((prev) =>
       prev.map((t) => (t.id === taskId ? { ...t, title: nextTitle } : t)),
     );
+    setStreamBoard((prev) => {
+      if (!prev) return prev;
+      const rename = (tasks: StreamTask[]) =>
+        tasks.map((t) => (t.id === taskId ? { ...t, title: nextTitle } : t));
+      return {
+        ...prev,
+        inbox: { ...prev.inbox, tasks: rename(prev.inbox.tasks) },
+        streams: prev.streams.map((s) => ({ ...s, tasks: rename(s.tasks) })),
+      };
+    });
   }
 
   function modeLabel(mode: string) {
     if (mode === "habit") return "Habit";
     if (mode === "rolling") return "Picked up · rolling";
     return "Calendar";
+  }
+
+  function pinRowActions(taskId: string, opts?: { canComplete?: boolean }) {
+    const canComplete = opts?.canComplete !== false;
+    return (
+      <div className="flex shrink-0 items-center gap-2">
+        {canComplete && (
+          <button
+            type="button"
+            className="rounded bg-ink px-3 py-1.5 text-sm text-paper"
+            onClick={() => completeFlex(taskId)}
+          >
+            Done
+          </button>
+        )}
+        <button
+          type="button"
+          className="rounded border border-accent px-3 py-1.5 text-sm text-accent"
+          onClick={() => pinFlex(taskId, true)}
+        >
+          Pin
+        </button>
+        <TrashButton onClick={() => trashTask(taskId)} />
+      </div>
+    );
   }
 
   return (
@@ -813,22 +918,7 @@ export default function MyDayPage() {
                     <ScheduledDate dueAt={t.dueAt} />
                   </div>
                 </div>
-                <div className="flex shrink-0 items-center gap-2">
-                  <button
-                    type="button"
-                    className="rounded bg-ink px-3 py-1.5 text-sm text-paper"
-                    onClick={() => completeFlex(t.id)}
-                  >
-                    Done
-                  </button>
-                  <button
-                    type="button"
-                    className="rounded border border-accent px-3 py-1.5 text-sm text-accent"
-                    onClick={() => pinFlex(t.id, true)}
-                  >
-                    Pin
-                  </button>
-                </div>
+                {pinRowActions(t.id)}
               </li>
             ))}
           </ul>
@@ -861,13 +951,7 @@ export default function MyDayPage() {
                           <ScheduledDate dueAt={t.dueAt} />
                         </div>
                       </div>
-                      <button
-                        type="button"
-                        className="rounded border border-accent px-2 py-1 text-sm text-accent"
-                        onClick={() => pinFlex(t.id, true)}
-                      >
-                        Add to My Day
-                      </button>
+                      {pinRowActions(t.id)}
                     </li>
                   ))}
                 </ul>
@@ -877,41 +961,87 @@ export default function MyDayPage() {
         </section>
       )}
 
-      {inboxFlex.length > 0 && (
+      {!loading && (pinnableCatalog.length > 0 || inboxFlex.length > 0 || taskSearch.trim()) && (
         <section className="space-y-3">
-          <h2 className="font-[family-name:var(--font-display)] text-xl font-semibold">
-            {streams.length > 0 ? "Not planned yet" : "From Inbox"}
-          </h2>
-          <ul className="space-y-2">
-            {inboxFlex.slice(0, 12).map((t) => (
-              <li
-                key={t.id}
-                className="flex items-center justify-between gap-2 border-b border-line/60 py-2"
-              >
-                <div className="min-w-0 flex-1">
-                  <TaskTitle
-                    taskId={t.id}
-                    title={t.title}
-                    onRenamed={(next) => applyRename(t.id, next)}
-                    onError={setError}
-                  />
-                  <div className="flex flex-wrap items-center gap-2 text-xs">
-                    {!t.list.isInbox && t.list.color && (
-                      <StreamTag name={t.list.name} color={t.list.color} />
-                    )}
-                    <ScheduledDate dueAt={t.dueAt} />
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  className="shrink-0 text-sm font-medium text-accent"
-                  onClick={() => pinFlex(t.id, true)}
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <h2 className="font-[family-name:var(--font-display)] text-xl font-semibold">
+              {streams.length > 0 ? "Find & pin" : "From Inbox"}
+            </h2>
+            {streams.length > 0 && (
+              <input
+                type="search"
+                value={taskSearch}
+                onChange={(e) => setTaskSearch(e.target.value)}
+                placeholder="Search any stream…"
+                className="w-full max-w-sm rounded border border-line bg-paper px-3 py-2 text-sm"
+                aria-label="Search tasks from any stream"
+              />
+            )}
+          </div>
+          {taskSearch.trim() ? (
+            searchHits.length === 0 ? (
+              <p className="text-sm text-muted">No matching tasks to pin.</p>
+            ) : (
+              <ul className="space-y-2">
+                {searchHits.map((t) => (
+                  <li
+                    key={t.id}
+                    className="flex items-center justify-between gap-2 border-b border-line/60 py-2"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <TaskTitle
+                        taskId={t.id}
+                        title={t.title}
+                        onRenamed={(next) => applyRename(t.id, next)}
+                        onError={setError}
+                      />
+                      <div className="flex flex-wrap items-center gap-2 text-xs">
+                        {!t.isInbox && t.streamColor && (
+                          <StreamTag name={t.streamName} color={t.streamColor} />
+                        )}
+                        {t.isInbox && <span className="text-muted">Inbox</span>}
+                        {t.repeatMode === "rolling" && (
+                          <span className="text-muted">Rolling</span>
+                        )}
+                        <ScheduledDate dueAt={t.dueAt} />
+                      </div>
+                    </div>
+                    {pinRowActions(t.id, { canComplete: t.kind === "flex" })}
+                  </li>
+                ))}
+              </ul>
+            )
+          ) : (
+            <ul className="space-y-2">
+              {inboxFlex.slice(0, 12).map((t) => (
+                <li
+                  key={t.id}
+                  className="flex items-center justify-between gap-2 border-b border-line/60 py-2"
                 >
-                  Pin
-                </button>
-              </li>
-            ))}
-          </ul>
+                  <div className="min-w-0 flex-1">
+                    <TaskTitle
+                      taskId={t.id}
+                      title={t.title}
+                      onRenamed={(next) => applyRename(t.id, next)}
+                      onError={setError}
+                    />
+                    <div className="flex flex-wrap items-center gap-2 text-xs">
+                      {!t.list.isInbox && t.list.color && (
+                        <StreamTag name={t.list.name} color={t.list.color} />
+                      )}
+                      <ScheduledDate dueAt={t.dueAt} />
+                    </div>
+                  </div>
+                  {pinRowActions(t.id)}
+                </li>
+              ))}
+              {inboxFlex.length === 0 && pinnableCatalog.length > 0 && (
+                <p className="text-sm text-muted">
+                  Search above to pin a task from any stream.
+                </p>
+              )}
+            </ul>
+          )}
         </section>
       )}
     </div>
