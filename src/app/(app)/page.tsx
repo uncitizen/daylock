@@ -251,16 +251,14 @@ export default function MyDayPage() {
   function editor(taskId: string) {
     if (editingId !== taskId) return null;
     return (
-      <div className="mt-3">
-        <TaskEditor
-          mode={{ kind: "edit", taskId }}
-          onCancel={() => setEditingId(null)}
-          onDone={() => {
-            setEditingId(null);
-            void reload(true);
-          }}
-        />
-      </div>
+      <TaskEditor
+        mode={{ kind: "edit", taskId }}
+        onCancel={() => setEditingId(null)}
+        onDone={() => {
+          setEditingId(null);
+          void reload(true);
+        }}
+      />
     );
   }
 
@@ -425,7 +423,7 @@ export default function MyDayPage() {
           className="rounded border border-line px-3 py-2 text-sm"
           title="Stream, goal, date or repeat"
         >
-          More…
+          Details
         </button>
       </form>
       {composerMore && (

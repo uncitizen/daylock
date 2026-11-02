@@ -1,13 +1,16 @@
 @import "tailwindcss";
 
 :root {
-  --ink: #1a1f1c;
+  --ink: #171c19;
   --paper: #f3f0e8;
   --paper-2: #e8e4d9;
-  --line: #c9c3b4;
-  --muted: #5c635c;
-  --accent: #2f6f4e;
-  --accent-soft: #d5e8dc;
+  --sheet: #fcfbf8;
+  --line: #c7c9c2;
+  --line-soft: #dbddd6;
+  --muted: #666e66;
+  --accent: #295f42;
+  --accent-soft: #e0f0e6;
+  --accent-wash: #f0f7f2;
   --hard: #b45309;
   --hard-soft: #fde68a;
   --locked: #1e3a5f;
@@ -22,10 +25,13 @@
   --color-ink: var(--ink);
   --color-paper: var(--paper);
   --color-paper-2: var(--paper-2);
+  --color-sheet: var(--sheet);
   --color-line: var(--line);
+  --color-line-soft: var(--line-soft);
   --color-muted: var(--muted);
   --color-accent: var(--accent);
   --color-accent-soft: var(--accent-soft);
+  --color-accent-wash: var(--accent-wash);
   --color-hard: var(--hard);
   --color-hard-soft: var(--hard-soft);
   --color-locked: var(--locked);
