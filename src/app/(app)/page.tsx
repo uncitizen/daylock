@@ -237,27 +237,7 @@ export default function MyDayPage() {
     );
   }
 
-  function editButton(taskId: string) {
-    return (
-      <button
-        type="button"
-        onClick={() => {
-          setModalTaskId(taskId);
-          setModalMode("edit");
-        }}
-        aria-label="Edit task"
-        title="Edit: stream, goal, date, repeat"
-        className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded text-muted hover:bg-line/40 hover:text-ink"
-      >
-        <svg viewBox="0 0 24 24" className="h-[18px] w-[18px]" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-          <path d="M4 20h4L19 9l-4-4L4 16v4z" />
-          <path d="M13.5 6.5l4 4" />
-        </svg>
-      </button>
-    );
-  }
-
-  function viewButton(taskId: string) {
+  function detailsButton(taskId: string) {
     return (
       <button
         type="button"
@@ -265,13 +245,14 @@ export default function MyDayPage() {
           setModalTaskId(taskId);
           setModalMode("view");
         }}
-        aria-label="View task details"
-        title="View details"
-        className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded text-muted hover:bg-line/40 hover:text-ink"
+        aria-label="View details"
+        title="View & edit task details"
+        className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded text-muted hover:bg-line/40 hover:text-ink"
       >
-        <svg viewBox="0 0 24 24" className="h-[18px] w-[18px]" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-          <circle cx="12" cy="12" r="3" />
+        <svg viewBox="0 0 24 24" className="h-[17px] w-[17px]" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <circle cx="12" cy="12" r="1" />
+          <circle cx="12" cy="5" r="1" />
+          <circle cx="12" cy="19" r="1" />
         </svg>
       </button>
     );
@@ -287,14 +268,14 @@ export default function MyDayPage() {
         aria-label={active ? "Hide checklist" : "Show checklist"}
         aria-expanded={active}
         title="Checklist"
-        className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded text-muted hover:bg-line/40 hover:text-ink"
+        className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded text-muted hover:bg-line/40 hover:text-ink"
       >
         <svg
           viewBox="0 0 24 24"
-          className="h-[18px] w-[18px]"
+          className="h-[17px] w-[17px]"
           fill="none"
           stroke="currentColor"
-          strokeWidth="1.75"
+          strokeWidth="2"
           strokeLinecap="round"
           strokeLinejoin="round"
           aria-hidden
@@ -487,7 +468,7 @@ export default function MyDayPage() {
   function pinRowActions(taskId: string, opts?: { canComplete?: boolean }) {
     const canComplete = opts?.canComplete !== false;
     return (
-      <div className="flex shrink-0 items-center gap-2">
+      <div className="flex shrink-0 items-center gap-1.5">
         {canComplete && (
           <button
             type="button"
@@ -499,11 +480,12 @@ export default function MyDayPage() {
         )}
         <button
           type="button"
-          className="rounded border border-accent px-3 py-1.5 text-sm text-accent"
+          className="rounded border border-accent px-2.5 py-1.5 text-sm text-accent"
           onClick={() => pinFlex(taskId, true)}
         >
           Pin
         </button>
+        {detailsButton(taskId)}
         <TrashButton onClick={() => trashTask(taskId)} />
       </div>
     );
@@ -695,7 +677,7 @@ export default function MyDayPage() {
                       </p>
                       {streamPicker(item.taskId, item.listId)}
                     </div>
-                    <div className="flex flex-wrap items-center gap-2">
+                    <div className="flex items-center gap-1.5">
                       <button
                         type="button"
                         className="rounded bg-ink px-3 py-1.5 text-sm text-paper"
@@ -706,7 +688,7 @@ export default function MyDayPage() {
                       {item.skippable && (
                         <button
                           type="button"
-                          className="rounded border border-line px-3 py-1.5 text-sm"
+                          className="rounded border border-line px-2.5 py-1.5 text-sm"
                           onClick={() =>
                             setSkipFor(skipFor === item.id ? null : item.id)
                           }
@@ -714,11 +696,8 @@ export default function MyDayPage() {
                           Skip…
                         </button>
                       )}
-                      {viewButton(item.taskId)}
-                      {editButton(item.taskId)}
-                      <div className="border-l border-line pl-0.5">
-                        <TrashButton onClick={() => trashTask(item.taskId)} />
-                      </div>
+                      {detailsButton(item.taskId)}
+                      <TrashButton onClick={() => trashTask(item.taskId)} />
                     </div>
                   </div>
 
@@ -832,7 +811,7 @@ export default function MyDayPage() {
                     <ScheduledDate dueAt={item.dueAt} />
                     {streamPicker(item.id, item.listId)}
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5">
                     {suggested ? (
                       <>
                         <button
@@ -844,7 +823,7 @@ export default function MyDayPage() {
                         </button>
                         <button
                           type="button"
-                          className="rounded border border-line px-3 py-1.5 text-sm"
+                          className="rounded border border-line px-2.5 py-1.5 text-sm"
                           onClick={() => swapSuggestion(item.id)}
                         >
                           Swap
@@ -868,19 +847,16 @@ export default function MyDayPage() {
                         </button>
                         <button
                           type="button"
-                          className="rounded border border-line px-3 py-1.5 text-sm"
+                          className="rounded border border-line px-2.5 py-1.5 text-sm"
                           onClick={() => pinFlex(item.id, false)}
                         >
                           Unpin
                         </button>
                       </>
                     )}
-                    {viewButton(item.id)}
-                    {editButton(item.id)}
+                    {detailsButton(item.id)}
                     {checklistButton(item.id, item.templateId)}
-                    <div className="border-l border-line pl-0.5">
-                      <TrashButton onClick={() => trashTask(item.id)} />
-                    </div>
+                    <TrashButton onClick={() => trashTask(item.id)} />
                   </div>
                 </div>
                 {checklist(item.id, item.templateId)}
