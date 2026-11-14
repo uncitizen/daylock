@@ -40,11 +40,21 @@ export function MyDayView({ data }: MyDayViewProps) {
 }
 
 function TimelineItemView({ item }: { item: any }) {
-  const streamColor = item.streamColor || '#999';
+  const streamColor = item.streamColor || '#c9c3b4';
+  const itemStyle = item.hard 
+    ? [styles.item, { 
+        borderLeftColor: '#b45309', // --hard
+        backgroundColor: '#fde68a', // --hard-soft
+      }]
+    : item.type === 'calendar'
+    ? [styles.item, {
+        borderLeftColor: '#1e3a5f', // --locked
+        backgroundColor: '#dbe7f3', // --locked-soft
+      }]
+    : [styles.item, { borderLeftColor: streamColor }];
 
   return (
-    <View style={styles.item}>
-      <View style={[styles.indicator, { backgroundColor: streamColor }]} />
+    <View style={itemStyle}>
       <View style={styles.itemContent}>
         <View style={styles.itemHeader}>
           <Text style={styles.itemTitle}>{item.title}</Text>
@@ -87,11 +97,8 @@ function TimelineItemView({ item }: { item: any }) {
 }
 
 function CompletedItemView({ item }: { item: any }) {
-  const streamColor = item.streamColor || '#999';
-
   return (
     <View style={styles.completedItem}>
-      <View style={[styles.indicator, { backgroundColor: streamColor }]} />
       <View style={styles.itemContent}>
         <Text style={styles.completedTitle}>✓ {item.title}</Text>
         <View style={styles.itemMeta}>
@@ -118,34 +125,33 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 20,
-    fontWeight: 'bold',
-    color: '#333',
+    fontWeight: '600',
+    color: '#1a1f1c', // --ink
     marginBottom: 12,
   },
   item: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
+    backgroundColor: '#e8e4d9', // --paper-2
+    borderRadius: 2,
     padding: 16,
     marginBottom: 12,
     flexDirection: 'row',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
+    borderLeftWidth: 4,
+    borderLeftColor: '#c9c3b4', // --line
   },
   completedItem: {
-    backgroundColor: '#f9f9f9',
-    borderRadius: 12,
+    backgroundColor: '#d5e8dc', // --accent-soft (with opacity)
+    borderRadius: 2,
     padding: 16,
     marginBottom: 12,
     flexDirection: 'row',
+    borderLeftWidth: 4,
+    borderLeftColor: '#166534', // --ok
     opacity: 0.7,
   },
   indicator: {
-    width: 4,
-    borderRadius: 2,
-    marginRight: 12,
+    width: 0, // Using borderLeftWidth instead
+    borderRadius: 0,
+    marginRight: 0,
   },
   itemContent: {
     flex: 1,
@@ -158,14 +164,15 @@ const styles = StyleSheet.create({
   itemTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#333',
+    color: '#1a1f1c', // --ink
     flex: 1,
   },
   completedTitle: {
     fontSize: 16,
     fontWeight: '500',
-    color: '#666',
+    color: '#5c635c', // --muted
     marginBottom: 8,
+    textDecorationLine: 'line-through',
   },
   badge: {
     marginLeft: 8,
@@ -180,14 +187,14 @@ const styles = StyleSheet.create({
   },
   metaText: {
     fontSize: 14,
-    color: '#666',
+    color: '#5c635c', // --muted
   },
   streamName: {
     fontWeight: '600',
   },
   location: {
     fontSize: 14,
-    color: '#666',
+    color: '#5c635c', // --muted
     marginTop: 8,
   },
 });

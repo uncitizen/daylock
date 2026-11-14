@@ -161,84 +161,90 @@ export default function App() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#f3f0e8', // --paper
   },
   scrollView: {
     flex: 1,
   },
   header: {
-    backgroundColor: '#fff',
+    backgroundColor: '#f3f0e8', // --paper
     padding: 20,
     paddingTop: Platform.OS === 'ios' ? 60 : 40,
     borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
+    borderBottomColor: '#c9c3b4', // --line
   },
   headerTitle: {
     fontSize: 32,
-    fontWeight: 'bold',
-    color: '#333',
+    fontWeight: '600',
+    color: '#1a1f1c', // --ink
+    fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
   },
   headerDate: {
     fontSize: 16,
-    color: '#666',
+    color: '#5c635c', // --muted
     marginTop: 4,
   },
   configContainer: {
     flex: 1,
     padding: 20,
     justifyContent: 'center',
+    backgroundColor: '#f3f0e8', // --paper
   },
   title: {
     fontSize: 32,
-    fontWeight: 'bold',
-    color: '#333',
+    fontWeight: '600',
+    color: '#1a1f1c', // --ink
     marginBottom: 8,
     textAlign: 'center',
+    fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
   },
   subtitle: {
     fontSize: 16,
-    color: '#666',
+    color: '#5c635c', // --muted
     marginBottom: 32,
     textAlign: 'center',
   },
   input: {
-    backgroundColor: '#fff',
+    backgroundColor: '#f3f0e8', // --paper
     borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
+    borderColor: '#c9c3b4', // --line
+    borderRadius: 4,
     padding: 16,
     fontSize: 16,
     marginBottom: 16,
+    color: '#1a1f1c', // --ink
   },
   button: {
-    backgroundColor: '#007AFF',
-    borderRadius: 8,
+    backgroundColor: '#1a1f1c', // --ink
+    borderRadius: 4,
     padding: 16,
     alignItems: 'center',
     marginTop: 8,
   },
   buttonText: {
-    color: '#fff',
+    color: '#f3f0e8', // --paper
     fontSize: 18,
     fontWeight: '600',
   },
   helpText: {
     fontSize: 14,
-    color: '#999',
+    color: '#5c635c', // --muted
     textAlign: 'center',
     marginTop: 16,
   },
   error: {
-    color: '#ff3b30',
+    color: '#9f1239', // --danger
     fontSize: 14,
     marginBottom: 16,
     textAlign: 'center',
   },
   errorContainer: {
-    backgroundColor: '#ffe5e5',
+    backgroundColor: '#fde0e6',
     padding: 12,
     margin: 16,
-    borderRadius: 8,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: '#f5a3b8',
   },
   emptyState: {
     padding: 40,
@@ -246,6 +252,6 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 16,
-    color: '#999',
+    color: '#5c635c', // --muted
   },
 });

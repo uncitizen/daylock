@@ -100,23 +100,24 @@ struct DaylockWidgetEntryView : View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Text("My Day")
-                    .font(.headline)
-                    .fontWeight(.bold)
+                    .font(.system(.headline, design: .serif))
+                    .fontWeight(.semibold)
+                    .foregroundColor(Color(hex: "#1a1f1c"))
                 Spacer()
                 Text(entry.date, style: .time)
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(Color(hex: "#5c635c"))
             }
             .padding(.bottom, 4)
             
             if let error = entry.error {
                 Text(error)
                     .font(.caption)
-                    .foregroundColor(.red)
+                    .foregroundColor(Color(hex: "#9f1239"))
             } else if entry.tasks.isEmpty {
                 Text("No tasks for today")
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(Color(hex: "#5c635c"))
             } else {
                 ForEach(entry.tasks.indices, id: \.self) { index in
                     TaskRow(task: entry.tasks[index])
@@ -125,7 +126,7 @@ struct DaylockWidgetEntryView : View {
             }
         }
         .padding()
-        .background(Color(.systemBackground))
+        .background(Color(hex: "#f3f0e8"))
     }
 }
 
@@ -133,34 +134,38 @@ struct TaskRow: View {
     let task: Task
     
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 0) {
             Rectangle()
                 .fill(Color(hex: task.color))
-                .frame(width: 3)
-                .cornerRadius(1.5)
+                .frame(width: 4)
             
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 4) {
                 Text(task.title)
                     .font(.caption)
-                    .fontWeight(.medium)
+                    .fontWeight(.semibold)
+                    .foregroundColor(Color(hex: "#1a1f1c"))
                     .lineLimit(1)
                 
-                HStack {
+                HStack(spacing: 8) {
                     if !task.time.isEmpty {
                         Text(task.time)
                             .font(.caption2)
-                            .foregroundColor(.secondary)
+                            .foregroundColor(Color(hex: "#5c635c"))
                     }
                     if !task.stream.isEmpty {
                         Text(task.stream)
                             .font(.caption2)
-                            .foregroundColor(.secondary)
+                            .foregroundColor(Color(hex: "#5c635c"))
                             .fontWeight(.semibold)
                     }
                 }
             }
+            .padding(.leading, 12)
+            .padding(.vertical, 8)
+            Spacer()
         }
-        .frame(height: 32)
+        .background(Color(hex: "#e8e4d9"))
+        .cornerRadius(2)
     }
 }
 
