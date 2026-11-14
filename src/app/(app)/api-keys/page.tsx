@@ -95,9 +95,14 @@ export default function ApiKeysPage() {
 
       <div className="mb-8 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
         <h2 className="font-semibold mb-2">🔑 What are API Keys?</h2>
+        <p className="text-sm text-gray-700 dark:text-gray-300 mb-2">
+          API keys let AI assistants (like Claude, Cursor, ChatGPT) and the mobile app access your
+          Daylock instance without needing session cookies. Keys don&apos;t expire unless you set
+          an expiration date.
+        </p>
         <p className="text-sm text-gray-700 dark:text-gray-300">
-          API keys let AI assistants (like Claude, Cursor, ChatGPT) access your MCP server without
-          needing session cookies. Keys don&apos;t expire unless you set an expiration date.
+          📱 <strong>Mobile App:</strong> Use an API key to connect the Daylock mobile app and
+          enable home screen widgets on iOS and Android.
         </p>
       </div>
 
@@ -136,7 +141,7 @@ export default function ApiKeysPage() {
             type="text"
             value={newKeyName}
             onChange={(e) => setNewKeyName(e.target.value)}
-            placeholder="Key name (e.g., 'Claude Desktop', 'Cursor')"
+            placeholder="Key name (e.g., 'Claude Desktop', 'Cursor', 'Mobile App')"
             className="flex-1 px-3 py-2 border rounded dark:bg-gray-800 dark:border-gray-700"
             disabled={creating}
           />
