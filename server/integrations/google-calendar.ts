@@ -66,19 +66,47 @@ export async function syncGoogleCalendar(userId: string, daysAhead = 14) {
   const timeMax = new Date(timeMin);
   timeMax.setDate(timeMax.getDate() + daysAhead);
 
-  const res = await calendar.events.list({
-    calendarId: "primary",
-    timeMin: timeMin.toISOString(),
-    timeMax: timeMax.toISOString(),
-    singleEvents: true,
-    orderBy: "startTime",
-    maxResults: 250,
-  });
-
-  const events = res.data.items ?? [];
+  // Get all calendars the user has access to
+  const calendarList = await calendar.calendarList.list();
+  const calendars = calendarList.data.items ?? [];
+  
   let synced = 0;
+  const allEvents: Array<{
+    id: string;
+    summary?: string | null;
+    location?: string | null;
+    description?: string | null;
+    start: any;
+    end: any;
+  }> = [];
 
-  for (const ev of events) {
+  // Fetch events from all calendars
+  for (const cal of calendars) {
+    if (!cal.id) continue;
+    
+    // Skip calendars that are hidden or have access role of "freeBusyReader"
+    if (cal.selected === false || cal.accessRole === "freeBusyReader") continue;
+
+    try {
+      const res = await calendar.events.list({
+        calendarId: cal.id,
+        timeMin: timeMin.toISOString(),
+        timeMax: timeMax.toISOString(),
+        singleEvents: true,
+        orderBy: "startTime",
+        maxResults: 250,
+      });
+
+      const events = res.data.items ?? [];
+      allEvents.push(...events.filter((ev) => ev.id && ev.start && ev.end));
+    } catch (err) {
+      console.error(`Failed to fetch events from calendar ${cal.id}:`, err);
+      // Continue with other calendars even if one fails
+    }
+  }
+
+  // Store all events
+  for (const ev of allEvents) {
     if (!ev.id || !ev.start || !ev.end) continue;
     const start = ev.start.dateTime
       ? new Date(ev.start.dateTime)
