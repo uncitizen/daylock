@@ -348,6 +348,10 @@ export default function MyDayPage() {
         setError("Sign in with Google to sync calendar.");
         return;
       }
+      if (result.error === "INSUFFICIENT_SCOPE") {
+        setError("Please sign out and sign back in to grant calendar access.");
+        return;
+      }
       setSyncMsg(`Synced ${result.synced} events`);
       await reload();
     } catch (e) {

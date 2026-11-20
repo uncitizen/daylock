@@ -67,10 +67,19 @@ export async function syncGoogleCalendar(userId: string, daysAhead = 14) {
   timeMax.setDate(timeMax.getDate() + daysAhead);
 
   // Get all calendars the user has access to
-  const calendarList = await calendar.calendarList.list();
-  const calendars = calendarList.data.items ?? [];
-  
-  console.log(`[syncGoogleCalendar] Found ${calendars.length} calendars`);
+  let calendars;
+  try {
+    const calendarList = await calendar.calendarList.list();
+    calendars = calendarList.data.items ?? [];
+    console.log(`[syncGoogleCalendar] Found ${calendars.length} calendars`);
+  } catch (err: any) {
+    // Check if this is an insufficient scope error
+    if (err.code === 403 || err.message?.includes("insufficient authentication scopes")) {
+      console.error("[syncGoogleCalendar] Insufficient scope - user needs to re-authenticate");
+      return { synced: 0, error: "INSUFFICIENT_SCOPE" as const };
+    }
+    throw err;
+  }
   
   let synced = 0;
   const allEvents: calendar_v3.Schema$Event[] = [];
