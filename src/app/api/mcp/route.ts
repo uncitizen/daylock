@@ -1,11 +1,13 @@
-import { createMcpServer } from "@/lib/mcp-server";
+import {
+  MCP_TOOL_DEFINITIONS,
+  callMcpTool,
+} from "@/lib/mcp-tools";
 import { validateApiKey } from "@server/domain/api-keys";
 import { NextRequest, NextResponse } from "next/server";
 
 async function handleMcpRequest(req: NextRequest) {
   let userId: string | null = null;
 
-  // Try API key authentication first (Authorization: Bearer mcp_xxx)
   const authHeader = req.headers.get("authorization");
   if (authHeader?.startsWith("Bearer ")) {
     const apiKey = authHeader.slice(7);
@@ -27,17 +29,11 @@ async function handleMcpRequest(req: NextRequest) {
   }
 
   try {
-    // Get the JSON-RPC request
     const body = await req.json();
-    
-    // Create MCP server instance
-    const mcpServer = createMcpServer(userId);
-    
-    // Handle the MCP request based on method
     const { method, params, id } = body;
-    
+
     let result;
-    
+
     switch (method) {
       case "initialize":
         result = {
@@ -47,189 +43,33 @@ async function handleMcpRequest(req: NextRequest) {
           },
           serverInfo: {
             name: "daylock-task-manager",
-            version: "1.0.0",
+            version: "1.1.0",
           },
         };
         break;
-        
+
+      case "notifications/initialized":
+        return new NextResponse(null, { status: 204 });
+
       case "tools/list":
-        // Return the list of available tools
         result = {
-          tools: [
-            {
-              name: "list_tasks",
-              description: "Get all tasks from a list (defaults to inbox)",
-              inputSchema: {
-                type: "object",
-                properties: {
-                  listId: {
-                    type: "string",
-                    description: "Optional list ID. Defaults to user's inbox.",
-                  },
-                  includeCompleted: {
-                    type: "boolean",
-                    description: "Include completed tasks",
-                    default: false,
-                  },
-                },
-              },
-            },
-            {
-              name: "create_task",
-              description: "Create a new task",
-              inputSchema: {
-                type: "object",
-                properties: {
-                  title: { type: "string", description: "Task title (required)" },
-                  notes: { type: "string", description: "Optional notes/description" },
-                  listId: { type: "string", description: "List ID (defaults to inbox)" },
-                  priority: {
-                    type: "string",
-                    enum: ["none", "low", "medium", "high"],
-                    description: "Task priority",
-                  },
-                  dueAt: { type: "string", description: "Due date/time in ISO format" },
-                  estimatedMinutes: { type: "number", description: "Estimated duration" },
-                  attentionCost: {
-                    type: "string",
-                    enum: ["deep", "light", "any"],
-                    description: "Attention cost level",
-                  },
-                  pinToMyDay: { type: "boolean", description: "Pin to My Day" },
-                },
-                required: ["title"],
-              },
-            },
-            {
-              name: "complete_task",
-              description: "Mark a task as completed",
-              inputSchema: {
-                type: "object",
-                properties: {
-                  taskId: { type: "string", description: "Task ID to complete" },
-                },
-                required: ["taskId"],
-              },
-            },
-            {
-              name: "update_task",
-              description: "Update task properties",
-              inputSchema: {
-                type: "object",
-                properties: {
-                  taskId: { type: "string", description: "Task ID to update" },
-                  title: { type: "string", description: "New title" },
-                  notes: { type: "string", description: "New notes" },
-                  priority: {
-                    type: "string",
-                    enum: ["none", "low", "medium", "high"],
-                    description: "New priority",
-                  },
-                  dueAt: { type: "string", description: "New due date/time in ISO format" },
-                  estimatedMinutes: { type: "number", description: "Estimated duration" },
-                },
-                required: ["taskId"],
-              },
-            },
-            {
-              name: "list_streams",
-              description: "Get all life streams (non-inbox lists)",
-              inputSchema: {
-                type: "object",
-                properties: {},
-              },
-            },
-            {
-              name: "get_my_day",
-              description:
-                "Get the full My Day view for a date: calendar events, habits/recurring occurrences, pinned flex tasks, fill-wait suggestions, completed items, and available flex tasks. Defaults to today in the user's timezone.",
-              inputSchema: {
-                type: "object",
-                properties: {
-                  date: {
-                    type: "string",
-                    description: "Date in YYYY-MM-DD format (defaults to today)",
-                  },
-                },
-              },
-            },
-            {
-              name: "pin_to_my_day",
-              description:
-                "Pin an existing task to My Day (or unpin it with pinned: false). Use list_tasks to find task IDs.",
-              inputSchema: {
-                type: "object",
-                properties: {
-                  taskId: { type: "string", description: "Task ID to pin" },
-                  date: {
-                    type: "string",
-                    description: "Date in YYYY-MM-DD format (defaults to today)",
-                  },
-                  pinned: {
-                    type: "boolean",
-                    description: "true to pin, false to unpin",
-                    default: true,
-                  },
-                },
-                required: ["taskId"],
-              },
-            },
-          ],
+          tools: MCP_TOOL_DEFINITIONS.map((t) => ({
+            name: t.name,
+            description: t.description,
+            inputSchema: t.inputSchema,
+          })),
         };
         break;
-        
-      case "tools/call":
-        // Call the actual tool implementation
-        const { name: toolName, arguments: toolArgs } = params;
-        
+
+      case "tools/call": {
+        const { name: toolName, arguments: toolArgs } = params ?? {};
         try {
-          // Import the tool handlers directly
-          const { listTasks, createTask, completeTask, updateTask, listStreams, getMyDay, pinToMyDay } = await import("@/lib/mcp-tools");
-          
-          let toolResult;
-          
-          switch (toolName) {
-            case "list_tasks":
-              toolResult = await listTasks(userId, toolArgs);
-              break;
-            case "create_task":
-              toolResult = await createTask(userId, toolArgs);
-              break;
-            case "complete_task":
-              toolResult = await completeTask(userId, toolArgs);
-              break;
-            case "update_task":
-              toolResult = await updateTask(userId, toolArgs);
-              break;
-            case "list_streams":
-              toolResult = await listStreams(userId, toolArgs);
-              break;
-            case "get_my_day":
-              toolResult = await getMyDay(userId, toolArgs);
-              break;
-            case "pin_to_my_day":
-              toolResult = await pinToMyDay(userId, toolArgs);
-              break;
-            default:
-              return NextResponse.json(
-                {
-                  jsonrpc: "2.0",
-                  id,
-                  error: {
-                    code: -32601,
-                    message: `Unknown tool: ${toolName}`,
-                  },
-                },
-                { status: 200 }
-              );
-          }
-          
+          const toolResult = await callMcpTool(userId, toolName, toolArgs ?? {});
           return NextResponse.json({
             jsonrpc: "2.0",
             id,
             result: toolResult,
           });
-          
         } catch (error) {
           console.error("Tool execution error:", error);
           return NextResponse.json(
@@ -241,10 +81,11 @@ async function handleMcpRequest(req: NextRequest) {
                 message: `Tool execution failed: ${String(error)}`,
               },
             },
-            { status: 200 }
+            { status: 200 },
           );
         }
-        
+      }
+
       default:
         return NextResponse.json(
           {
@@ -255,21 +96,20 @@ async function handleMcpRequest(req: NextRequest) {
               message: `Method not found: ${method}`,
             },
           },
-          { status: 200 }
+          { status: 200 },
         );
     }
-    
+
     return NextResponse.json({
       jsonrpc: "2.0",
       id,
       result,
     });
-    
   } catch (error) {
     console.error("MCP request error:", error);
     return NextResponse.json(
       { error: "Internal server error", details: String(error) },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
