@@ -319,30 +319,108 @@ export async function createTask(
   });
 }
 
+const OPEN_OCCURRENCE_STATUSES = ["pending", "snoozed", "missed"] as const;
+
+/** Find today's (or latest open) occurrence for a repeating task. */
+async function resolveOpenOccurrence(
+  userId: string,
+  taskId: string,
+  date?: string,
+) {
+  const day = date || (await todayForUser(userId));
+  const dayStart = startOfDay(new Date(day + "T00:00:00"));
+
+  const todayOcc = await prisma.taskOccurrence.findFirst({
+    where: {
+      taskId,
+      date: dayStart,
+      status: { in: [...OPEN_OCCURRENCE_STATUSES] },
+      task: { list: { workspace: { memberships: { some: { userId } } } } },
+    },
+  });
+  if (todayOcc) return todayOcc;
+
+  // Fall back to the most recent open chip (missed habit, etc.)
+  return prisma.taskOccurrence.findFirst({
+    where: {
+      taskId,
+      status: { in: [...OPEN_OCCURRENCE_STATUSES] },
+      task: { list: { workspace: { memberships: { some: { userId } } } } },
+    },
+    orderBy: { date: "desc" },
+  });
+}
+
+async function findOccurrenceForUser(userId: string, occurrenceId: string) {
+  return prisma.taskOccurrence.findFirst({
+    where: {
+      id: occurrenceId,
+      task: { list: { workspace: { memberships: { some: { userId } } } } },
+    },
+  });
+}
+
 export async function completeTask(
   userId: string,
-  args: { taskId: string; occurrenceId?: string },
+  args: { taskId?: string; occurrenceId?: string; date?: string },
 ) {
-  if (args.occurrenceId) {
-    const occ = await prisma.taskOccurrence.findFirst({
-      where: {
-        id: args.occurrenceId,
-        taskId: args.taskId,
-        task: { list: { workspace: { memberships: { some: { userId } } } } },
+  let occurrenceId = args.occurrenceId;
+
+  // Agents often pass the timeline occurrence `id` as taskId.
+  if (!occurrenceId && args.taskId) {
+    const asOcc = await findOccurrenceForUser(userId, args.taskId);
+    if (asOcc) occurrenceId = asOcc.id;
+  }
+
+  if (occurrenceId) {
+    const occ = await findOccurrenceForUser(userId, occurrenceId);
+    if (!occ) return errorResult("Occurrence not found");
+    if (args.taskId && args.taskId !== occ.taskId && args.taskId !== occ.id) {
+      return errorResult("occurrenceId does not belong to that taskId");
+    }
+    const occurrence = await completeOccurrence(occ.id);
+    return ok({
+      success: true,
+      occurrence: {
+        id: occurrence.id,
+        taskId: occurrence.taskId,
+        status: occurrence.status,
+        date: iso(occurrence.date),
+        completedAt: iso(occurrence.completedAt),
       },
     });
-    if (!occ) return errorResult("Occurrence not found");
-    const occurrence = await completeOccurrence(occ.id);
-    return ok({ success: true, occurrence });
+  }
+
+  if (!args.taskId) {
+    return errorResult("Provide taskId and/or occurrenceId");
   }
 
   const task = await getTaskForUser(args.taskId, userId);
   if (!task) return errorResult("Task not found");
+
+  // Habits / rolling / fixed: complete today's open occurrence automatically.
   if (task.kind === "template" && task.recurrenceRule) {
-    return errorResult(
-      "This is a repeating task — pass occurrenceId from get_my_day timeline (type=occurrence)",
-    );
+    const occ = await resolveOpenOccurrence(userId, task.id, args.date);
+    if (!occ) {
+      return errorResult(
+        `No open occurrence for "${task.title}" today — nothing to complete`,
+      );
+    }
+    const occurrence = await completeOccurrence(occ.id);
+    return ok({
+      success: true,
+      taskId: task.id,
+      title: task.title,
+      occurrence: {
+        id: occurrence.id,
+        taskId: occurrence.taskId,
+        status: occurrence.status,
+        date: iso(occurrence.date),
+        completedAt: iso(occurrence.completedAt),
+      },
+    });
   }
+
   const updated = await completeFlexTask(args.taskId);
   return ok({ success: true, task: serializeTask(updated) });
 }
@@ -402,25 +480,55 @@ export async function trashTask(userId: string, args: { taskId: string }) {
 export async function skipOccurrence(
   userId: string,
   args: {
-    occurrenceId: string;
+    occurrenceId?: string;
+    taskId?: string;
+    date?: string;
     action?: "skip" | "defer" | "snooze";
     reason?: string;
     deferDays?: number;
   },
 ) {
-  const occ = await prisma.taskOccurrence.findFirst({
-    where: {
-      id: args.occurrenceId,
-      task: { list: { workspace: { memberships: { some: { userId } } } } },
-    },
-  });
+  let occurrenceId = args.occurrenceId;
+
+  if (!occurrenceId && args.taskId) {
+    const asOcc = await findOccurrenceForUser(userId, args.taskId);
+    if (asOcc) {
+      occurrenceId = asOcc.id;
+    } else {
+      const open = await resolveOpenOccurrence(userId, args.taskId, args.date);
+      if (open) occurrenceId = open.id;
+    }
+  }
+
+  if (!occurrenceId) {
+    return errorResult("Provide occurrenceId, or taskId for today's habit/rolling occurrence");
+  }
+
+  const occ = await findOccurrenceForUser(userId, occurrenceId);
   if (!occ) return errorResult("Occurrence not found");
-  const result = await skipOccurrenceDomain(args.occurrenceId, {
-    action: args.action,
-    reason: args.reason,
-    deferDays: args.deferDays,
-  });
-  return ok({ success: true, occurrence: result });
+
+  try {
+    const result = await skipOccurrenceDomain(occurrenceId, {
+      action: args.action,
+      reason: args.reason,
+      deferDays: args.deferDays,
+    });
+    return ok({
+      success: true,
+      occurrence: {
+        id: result.id,
+        taskId: result.taskId,
+        status: result.status,
+        date: iso(result.date),
+        skipReason: result.skipReason,
+      },
+    });
+  } catch (e) {
+    if (e instanceof Error && e.message === "HARD_OCCURRENCE") {
+      return errorResult("This occurrence is hard and cannot be skipped");
+    }
+    throw e;
+  }
 }
 
 export async function listStreams(userId: string) {
@@ -1044,14 +1152,17 @@ export const MCP_TOOL_DEFINITIONS: McpToolDefinition[] = [
     name: "complete_task",
     title: "Complete task",
     description:
-      "Complete a flex task, or a repeating occurrence (pass occurrenceId from get_my_day)",
+      "Complete a flex task or today's habit/rolling/fixed occurrence. For habits you can pass just taskId — today's open occurrence is completed automatically. You may also pass occurrenceId (or the timeline occurrence id as taskId).",
     inputSchema: {
       type: "object",
       properties: {
-        taskId: { type: "string" },
-        occurrenceId: { type: "string" },
+        taskId: { type: "string", description: "Task ID, or a My Day occurrence id" },
+        occurrenceId: {
+          type: "string",
+          description: "Optional occurrence id from get_my_day timeline (type=occurrence)",
+        },
+        date: { type: "string", description: "YYYY-MM-DD when completing a habit (defaults to today)" },
       },
-      required: ["taskId"],
     },
   },
   {
@@ -1089,16 +1200,18 @@ export const MCP_TOOL_DEFINITIONS: McpToolDefinition[] = [
   {
     name: "skip_occurrence",
     title: "Skip occurrence",
-    description: "Skip, defer, or snooze a habit/rolling/fixed occurrence from My Day",
+    description:
+      "Skip, defer, or snooze a habit/rolling/fixed occurrence. Pass occurrenceId, or just taskId to target today's open occurrence.",
     inputSchema: {
       type: "object",
       properties: {
         occurrenceId: { type: "string" },
+        taskId: { type: "string", description: "Habit/rolling task id — uses today's open occurrence" },
+        date: { type: "string", description: "YYYY-MM-DD (defaults to today)" },
         action: { type: "string", enum: ["skip", "defer", "snooze"], default: "skip" },
         reason: { type: "string" },
         deferDays: { type: "number" },
       },
-      required: ["occurrenceId"],
     },
   },
   {
@@ -1491,7 +1604,13 @@ export async function callMcpTool(
   if (!handler) {
     return errorResult(`Unknown tool: ${name}`);
   }
-  return handler(userId, args ?? {});
+  try {
+    return await handler(userId, args ?? {});
+  } catch (e) {
+    console.error(`[mcp] ${name} failed`, e);
+    const message = e instanceof Error ? e.message : String(e);
+    return errorResult(`Tool failed: ${message}`);
+  }
 }
 
 export function listMcpToolNames() {
