@@ -3,7 +3,7 @@ import { z } from "zod";
 import { prisma } from "@server/db/client";
 import { createTask, getInboxForUser } from "@server/domain/tasks";
 import { patchMyDay } from "@server/domain/my-day";
-import { pinToMyDay } from "@/lib/mcp-tools";
+import { getMyDay, pinToMyDay } from "@/lib/mcp-tools";
 
 export function createMcpServer(userId: string) {
   const mcpServer = new McpServer({
@@ -319,8 +319,9 @@ export function createMcpServer(userId: string) {
   mcpServer.registerTool(
     "get_my_day",
     {
-      title: "Get My Day items",
-      description: "Get all items pinned to My Day for a specific date (defaults to today)",
+      title: "Get My Day",
+      description:
+        "Get the full My Day view for a date: calendar events, habits/recurring occurrences, pinned flex tasks, fill-wait suggestions, completed items, and available flex tasks. Defaults to today in the user's timezone.",
       inputSchema: {
         date: z
           .string()
@@ -328,45 +329,7 @@ export function createMcpServer(userId: string) {
           .describe("Date in YYYY-MM-DD format (defaults to today)"),
       },
     },
-    async ({ date }) => {
-      const targetDate = date || new Date().toISOString().split("T")[0];
-
-      const items = await prisma.myDayItem.findMany({
-        where: {
-          userId,
-          date: new Date(targetDate),
-        },
-        orderBy: { sortOrder: "asc" },
-      });
-
-      const flexTasks = await prisma.task.findMany({
-        where: {
-          id: { in: items.filter((i) => i.refType === "flex").map((i) => i.refId) },
-        },
-      });
-
-      return {
-        content: [
-          {
-            type: "text",
-            text: JSON.stringify({
-              date: targetDate,
-              items: items.map((item) => {
-                const task = flexTasks.find((t) => t.id === item.refId);
-                return {
-                  id: item.id,
-                  refType: item.refType,
-                  refId: item.refId,
-                  pinned: item.pinned,
-                  source: item.source,
-                  taskTitle: task?.title,
-                };
-              }),
-            }),
-          },
-        ],
-      };
-    },
+    (args) => getMyDay(userId, args),
   );
 
   // ─── Pin to My Day ────────────────────────────────────────────────
