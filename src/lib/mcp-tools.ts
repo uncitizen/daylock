@@ -258,7 +258,7 @@ export async function getMyDay(userId: string, args: { date?: string }) {
   return {
     content: [
       {
-        type: "text",
+        type: "text" as const,
         text: JSON.stringify({
           date: targetDate,
           timeline: data.timeline.map((item) => {
