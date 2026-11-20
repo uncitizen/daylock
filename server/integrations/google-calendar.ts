@@ -1,4 +1,4 @@
-import { google } from "googleapis";
+import { google, calendar_v3 } from "googleapis";
 import { prisma } from "../db/client";
 
 function oauthClient() {
@@ -73,14 +73,7 @@ export async function syncGoogleCalendar(userId: string, daysAhead = 14) {
   console.log(`[syncGoogleCalendar] Found ${calendars.length} calendars`);
   
   let synced = 0;
-  const allEvents: Array<{
-    id?: string | null;
-    summary?: string | null;
-    location?: string | null;
-    description?: string | null;
-    start: any;
-    end: any;
-  }> = [];
+  const allEvents: calendar_v3.Schema$Event[] = [];
 
   // Fetch events from all calendars
   for (const cal of calendars) {
