@@ -2,7 +2,7 @@ import { startOfDay } from "date-fns";
 import { formatInTimeZone } from "date-fns-tz";
 import { prisma } from "@server/db/client";
 import { createTask as createTaskDomain, getInboxForUser } from "@server/domain/tasks";
-import { patchMyDay } from "@server/domain/my-day";
+import { getMyDay as getMyDayDomain, patchMyDay } from "@server/domain/my-day";
 
 export async function listTasks(
   userId: string,
@@ -244,39 +244,107 @@ export async function listStreams(userId: string, _args: any) {
 }
 
 export async function getMyDay(userId: string, args: { date?: string }) {
-  const targetDate = args.date || new Date().toISOString().split("T")[0];
+  const targetDate = args.date || (await todayForUser(userId));
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(targetDate)) {
+    return errorResult("Date must be in YYYY-MM-DD format");
+  }
 
-  const items = await prisma.myDayItem.findMany({
-    where: {
-      userId,
-      date: new Date(targetDate),
-    },
-    orderBy: { sortOrder: "asc" },
-  });
+  // Same payload the My Day page uses: calendar, habits/occurrences, pins, etc.
+  const data = await getMyDayDomain(userId, new Date(targetDate + "T00:00:00"));
 
-  const flexTasks = await prisma.task.findMany({
-    where: {
-      id: { in: items.filter((i) => i.refType === "flex").map((i) => i.refId) },
-    },
-  });
+  const iso = (d: Date | string | null | undefined) =>
+    d == null ? null : d instanceof Date ? d.toISOString() : d;
 
   return {
     content: [
       {
-        type: "text",
+        type: "text" as const,
         text: JSON.stringify({
           date: targetDate,
-          items: items.map((item) => {
-            const task = flexTasks.find((t) => t.id === item.refId);
+          timeline: data.timeline.map((item) => {
+            if (item.type === "calendar") {
+              return {
+                type: "calendar",
+                id: item.id,
+                title: item.title,
+                start: iso(item.start),
+                end: iso(item.end),
+                attentionMode: item.attentionMode,
+                location: item.location ?? null,
+                pinned: item.pinned,
+              };
+            }
+            if (item.type === "occurrence") {
+              return {
+                type: "occurrence",
+                id: item.id,
+                taskId: item.taskId,
+                title: item.title,
+                mode: item.mode,
+                status: item.status,
+                hard: item.hard,
+                skippable: item.skippable,
+                scheduledStart: iso(item.scheduledStart),
+                scheduledEnd: iso(item.scheduledEnd),
+                dueSince: iso(item.dueSince),
+                listName: item.listName,
+                streamColor: item.streamColor,
+                isInbox: item.isInbox,
+                pinned: item.pinned,
+                estimatedMinutes: item.estimatedMinutes,
+                attentionCost: item.attentionCost,
+              };
+            }
             return {
+              type: "flex",
               id: item.id,
-              refType: item.refType,
-              refId: item.refId,
+              title: item.title,
               pinned: item.pinned,
               source: item.source,
-              taskTitle: task?.title,
+              dueAt: iso(item.dueAt),
+              listName: item.listName,
+              streamColor: item.streamColor,
+              isInbox: item.isInbox,
+              priority: item.priority,
+              estimatedMinutes: item.estimatedMinutes,
+              attentionCost: item.attentionCost,
             };
           }),
+          suggestions: data.suggestions.map((s) => ({
+            eventId: s.eventId,
+            eventTitle: s.eventTitle,
+            attentionMode: s.attentionMode,
+            remainingMinutes: s.remainingMinutes,
+            tasks: s.tasks.map((t) => ({
+              id: t.id,
+              title: t.title,
+              estimatedMinutes: t.estimatedMinutes,
+              attentionCost: t.attentionCost,
+              dueAt: iso(t.dueAt),
+            })),
+          })),
+          completed: data.completed.map((c) => ({
+            type: c.type,
+            id: c.id,
+            title: c.title,
+            completedAt: c.completedAt,
+            listName: c.listName,
+            streamColor: c.streamColor,
+            isInbox: c.isInbox,
+            ...(c.type === "occurrence" ? { taskId: c.taskId, status: c.status } : {}),
+          })),
+          flexAvailable: data.flexAvailable.map((t) => ({
+            id: t.id,
+            title: t.title,
+            dueAt: iso(t.dueAt),
+            priority: t.priority,
+            estimatedMinutes: t.estimatedMinutes,
+            attentionCost: t.attentionCost,
+            listName: t.list.name,
+            streamColor: t.list.isInbox ? null : t.list.color,
+            isInbox: t.list.isInbox,
+          })),
+          streams: data.streams,
         }),
       },
     ],

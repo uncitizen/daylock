@@ -141,7 +141,8 @@ async function handleMcpRequest(req: NextRequest) {
             },
             {
               name: "get_my_day",
-              description: "Get My Day items for a specific date",
+              description:
+                "Get the full My Day view for a date: calendar events, habits/recurring occurrences, pinned flex tasks, fill-wait suggestions, completed items, and available flex tasks. Defaults to today in the user's timezone.",
               inputSchema: {
                 type: "object",
                 properties: {
