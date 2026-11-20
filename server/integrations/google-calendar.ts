@@ -74,7 +74,7 @@ export async function syncGoogleCalendar(userId: string, daysAhead = 14) {
   
   let synced = 0;
   const allEvents: Array<{
-    id: string;
+    id?: string | null;
     summary?: string | null;
     location?: string | null;
     description?: string | null;
