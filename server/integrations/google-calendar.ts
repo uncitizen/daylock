@@ -1,4 +1,4 @@
-import { google } from "googleapis";
+import { google, calendar_v3 } from "googleapis";
 import { prisma } from "../db/client";
 
 function oauthClient() {
@@ -70,23 +70,26 @@ export async function syncGoogleCalendar(userId: string, daysAhead = 14) {
   const calendarList = await calendar.calendarList.list();
   const calendars = calendarList.data.items ?? [];
   
+  console.log(`[syncGoogleCalendar] Found ${calendars.length} calendars`);
+  
   let synced = 0;
-  const allEvents: Array<{
-    id: string;
-    summary?: string | null;
-    location?: string | null;
-    description?: string | null;
-    start: any;
-    end: any;
-  }> = [];
+  const allEvents: calendar_v3.Schema$Event[] = [];
 
   // Fetch events from all calendars
   for (const cal of calendars) {
     if (!cal.id) continue;
     
-    // Skip calendars that are hidden or have access role of "freeBusyReader"
-    if (cal.selected === false || cal.accessRole === "freeBusyReader") continue;
+    // Skip calendars that have limited access
+    if (cal.accessRole === "freeBusyReader") {
+      console.log(`[syncGoogleCalendar] Skipping calendar ${cal.summary} (accessRole=${cal.accessRole})`);
+      continue;
+    }
+    
+    // Note: We don't skip based on cal.selected because some calendars (like Family)
+    // might have selected=undefined or false but still contain events we want to sync
 
+    console.log(`[syncGoogleCalendar] Fetching events from calendar: ${cal.summary} (${cal.id})`);
+    
     try {
       const res = await calendar.events.list({
         calendarId: cal.id,
@@ -98,12 +101,15 @@ export async function syncGoogleCalendar(userId: string, daysAhead = 14) {
       });
 
       const events = res.data.items ?? [];
+      console.log(`[syncGoogleCalendar] Found ${events.length} events in ${cal.summary}`);
       allEvents.push(...events.filter((ev) => ev.id && ev.start && ev.end));
     } catch (err) {
-      console.error(`Failed to fetch events from calendar ${cal.id}:`, err);
+      console.error(`[syncGoogleCalendar] Failed to fetch events from calendar ${cal.id}:`, err);
       // Continue with other calendars even if one fails
     }
   }
+  
+  console.log(`[syncGoogleCalendar] Total events collected: ${allEvents.length}`);
 
   // Store all events
   for (const ev of allEvents) {
