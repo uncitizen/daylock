@@ -143,6 +143,8 @@ export async function syncGoogleCalendar(userId: string, daysAhead = 14) {
   
   console.log(`[syncGoogleCalendar] Total events collected: ${allEvents.length}`);
 
+  const seenIds: string[] = [];
+
   // Store all events
   for (const ev of allEvents) {
     if (!ev.id || !ev.start || !ev.end) continue;
@@ -158,6 +160,7 @@ export async function syncGoogleCalendar(userId: string, daysAhead = 14) {
       ? new Date(ev.end.dateTime)
       : allDayInstant(ev.end.date!, userTz);
 
+    seenIds.push(ev.id);
     await prisma.calendarEventCache.upsert({
       where: { userId_googleEventId: { userId, googleEventId: ev.id } },
       create: {
@@ -186,6 +189,19 @@ export async function syncGoogleCalendar(userId: string, daysAhead = 14) {
     synced++;
   }
 
+  // Drop cache rows Google no longer returns in this window (deleted / moved).
+  // Half-open overlap: start < timeMax && end > timeMin (all-day end is exclusive).
+  const staleWhere = {
+    userId,
+    start: { lt: timeMax },
+    end: { gt: timeMin },
+    ...(seenIds.length > 0 ? { googleEventId: { notIn: seenIds } } : {}),
+  };
+  const removed = await prisma.calendarEventCache.deleteMany({ where: staleWhere });
+  if (removed.count > 0) {
+    console.log(`[syncGoogleCalendar] Removed ${removed.count} stale cached events`);
+  }
+
   return { synced, error: null };
 }
 
@@ -194,7 +210,9 @@ export async function listCalendarEvents(userId: string, from: Date, to: Date) {
     where: {
       userId,
       start: { lte: to },
-      end: { gte: from },
+      // Google all-day end is exclusive (next midnight); don't use >= or
+      // yesterday's all-day holidays leak onto today.
+      end: { gt: from },
     },
     orderBy: { start: "asc" },
   });
