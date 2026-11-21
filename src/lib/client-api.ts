@@ -180,6 +180,7 @@ export type TimelineItem =
       title: string;
       start: string;
       end: string;
+      allDay?: boolean;
       attentionMode: "full" | "partial" | "idle";
       moveable: false;
       pinned: boolean;

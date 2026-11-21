@@ -616,7 +616,9 @@ export default function MyDayPage() {
                       </p>
                       <h2 className="font-semibold text-ink">{item.title}</h2>
                       <p className="text-sm text-muted">
-                        {timeLabel(item.start)} – {timeLabel(item.end)}
+                        {item.allDay
+                          ? "All day"
+                          : `${timeLabel(item.start)} – ${timeLabel(item.end)}`}
                         {item.location ? ` · ${item.location}` : ""}
                       </p>
                     </div>

@@ -5,8 +5,8 @@ import {
   OccurrenceStatus,
   type List,
 } from "@prisma/client";
-import { addDays, endOfDay, startOfDay } from "date-fns";
-import { fromZonedTime } from "date-fns-tz";
+import { addDays, startOfDay } from "date-fns";
+import { formatInTimeZone, fromZonedTime } from "date-fns-tz";
 import type { MyDayPatchInput } from "../../packages/api-types";
 import { prisma } from "../db/client";
 import { materializeAllActiveRules, materializeOccurrencesForTask } from "./recurrence";
@@ -24,6 +24,19 @@ function streamInfo(list: List) {
   };
 }
 
+/** Calendar date YYYY-MM-DD the API meant (UTC date parts from YYYY-MM-DDT00:00:00). */
+function calendarDateKey(date: Date) {
+  return formatInTimeZone(date, "UTC", "yyyy-MM-dd");
+}
+
+/** Midnight–end of that calendar date in the user's timezone, as UTC instants. */
+function zonedDayBounds(dateStr: string, timeZone: string) {
+  return {
+    dayStart: fromZonedTime(`${dateStr}T00:00:00.000`, timeZone),
+    dayEnd: fromZonedTime(`${dateStr}T23:59:59.999`, timeZone),
+  };
+}
+
 export async function getMyDay(userId: string, date: Date) {
   // Get user's timezone for proper date interpretation
   const user = await prisma.user.findUnique({
@@ -32,12 +45,15 @@ export async function getMyDay(userId: string, date: Date) {
   });
   const userTz = user?.timezone ?? "America/New_York";
 
-  // Convert the requested date to user's timezone
-  const dayStart = startOfDay(date);
-  const dayEnd = endOfDay(date);
+  // date-only key for @db.Date fields (occurrences / myDayItem)
+  const dateStr = calendarDateKey(date);
+  const dateOnly = new Date(`${dateStr}T00:00:00.000Z`);
 
-  // For completed items, search a 3-day window to account for UTC/local timezone mismatches
-  // (yesterday, today, tomorrow in terms of the date field, then filter by actual completion time)
+  // Timed calendar events must use the user's local day, not the UTC day.
+  // Otherwise Fri 7pm Toronto (Sat 00:00 UTC) shows up on "Saturday".
+  const { dayStart, dayEnd } = zonedDayBounds(dateStr, userTz);
+
+  // For completed items, search a padded window then filter by zoned day
   const completedSearchStart = addDays(dayStart, -2);
 
   // Ensure current open chips exist before reading
@@ -45,12 +61,12 @@ export async function getMyDay(userId: string, date: Date) {
 
   const [items, occurrences, completedOccurrences, calendarEvents, recentFlex, scheduledFlex, completedFlexTasks] = await Promise.all([
     prisma.myDayItem.findMany({
-      where: { userId, date: dayStart },
+      where: { userId, date: dateOnly },
       orderBy: [{ pinned: "desc" }, { sortOrder: "asc" }],
     }),
     prisma.taskOccurrence.findMany({
       where: {
-        date: dayStart,
+        date: dateOnly,
         status: {
           in: [OccurrenceStatus.pending, OccurrenceStatus.snoozed, OccurrenceStatus.missed],
         },
@@ -65,7 +81,7 @@ export async function getMyDay(userId: string, date: Date) {
     }),
     prisma.taskOccurrence.findMany({
       where: {
-        date: { gte: completedSearchStart, lte: addDays(dayEnd, 2) },
+        date: { gte: addDays(dateOnly, -2), lte: addDays(dateOnly, 2) },
         status: {
           in: [OccurrenceStatus.done, OccurrenceStatus.skipped],
         },
@@ -99,8 +115,7 @@ export async function getMyDay(userId: string, date: Date) {
       take: 50,
     }),
     // Flex tasks scheduled around this day, so they show even when older than
-    // the newest 50. Padded a day each side; the client decides what is "today"
-    // in the viewer's time zone.
+    // the newest 50. Padded a day each side in the user's timezone.
     prisma.task.findMany({
       where: {
         kind: "flex",
@@ -166,6 +181,7 @@ export async function getMyDay(userId: string, date: Date) {
       title: ev.title,
       start: ev.start,
       end: ev.end,
+      allDay: ev.allDay,
       attentionMode: ev.attentionMode,
       moveable: false,
       pinned: pinnedKeys.has(`calendar:${ev.id}`),
@@ -270,13 +286,10 @@ export async function getMyDay(userId: string, date: Date) {
     orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
   });
 
-  // Filter completed items to only include those completed within the requested day in user's timezone
-  const userDayStart = fromZonedTime(dayStart, userTz);
-  const userDayEnd = fromZonedTime(dayEnd, userTz);
-
+  // Completed timestamps are absolute; keep those that fall in the user's local day.
   const completed = [
     ...completedOccurrences
-      .filter((occ) => occ.updatedAt >= userDayStart && occ.updatedAt <= userDayEnd)
+      .filter((occ) => occ.updatedAt >= dayStart && occ.updatedAt <= dayEnd)
       .map((occ) => ({
         type: "occurrence" as const,
         id: occ.id,
@@ -288,7 +301,7 @@ export async function getMyDay(userId: string, date: Date) {
         ...streamInfo(occ.task.list),
       })),
     ...completedFlexTasks
-      .filter((task) => task.completedAt! >= userDayStart && task.completedAt! <= userDayEnd)
+      .filter((task) => task.completedAt! >= dayStart && task.completedAt! <= dayEnd)
       .map((task) => ({
         type: "flex" as const,
         id: task.id,
@@ -300,7 +313,7 @@ export async function getMyDay(userId: string, date: Date) {
   ].sort((a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime());
 
   return {
-    date: dayStart,
+    date: dateOnly,
     items,
     timeline,
     suggestions,
