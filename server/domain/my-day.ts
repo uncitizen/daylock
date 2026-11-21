@@ -99,7 +99,9 @@ export async function getMyDay(userId: string, date: Date) {
       where: {
         userId,
         start: { lte: dayEnd },
-        end: { gte: dayStart },
+        // All-day Google ends are exclusive (next local midnight). Using >=
+        // made yesterday's holidays appear on today.
+        end: { gt: dayStart },
       },
       orderBy: { start: "asc" },
     }),
