@@ -1,4 +1,5 @@
 import { google, calendar_v3 } from "googleapis";
+import { fromZonedTime } from "date-fns-tz";
 import { prisma } from "../db/client";
 
 function oauthClient() {
@@ -55,16 +56,38 @@ async function getAuthedCalendar(userId: string) {
   return google.calendar({ version: "v3", auth: client });
 }
 
+async function userTimezone(userId: string) {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { timezone: true },
+  });
+  return user?.timezone ?? "America/New_York";
+}
+
+/** Parse Google all-day date (YYYY-MM-DD) as midnight in the user's timezone. */
+function allDayInstant(dateStr: string, timeZone: string) {
+  return fromZonedTime(`${dateStr}T00:00:00.000`, timeZone);
+}
+
 export async function syncGoogleCalendar(userId: string, daysAhead = 14) {
   const calendar = await getAuthedCalendar(userId);
   if (!calendar) {
     return { synced: 0, error: "NO_TOKEN" as const };
   }
 
-  const timeMin = new Date();
-  timeMin.setHours(0, 0, 0, 0);
-  const timeMax = new Date(timeMin);
-  timeMax.setDate(timeMax.getDate() + daysAhead);
+  const userTz = await userTimezone(userId);
+
+  // Sync window in the user's local day, not the server's UTC midnight.
+  const todayKey = new Intl.DateTimeFormat("en-CA", {
+    timeZone: userTz,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date()); // en-CA → YYYY-MM-DD
+  const timeMin = allDayInstant(todayKey, userTz);
+  const [y, m, d] = todayKey.split("-").map(Number);
+  const endKey = new Date(Date.UTC(y, m - 1, d + daysAhead)).toISOString().slice(0, 10);
+  const timeMax = allDayInstant(endKey, userTz);
 
   // Get all calendars the user has access to
   let calendars;
@@ -123,13 +146,17 @@ export async function syncGoogleCalendar(userId: string, daysAhead = 14) {
   // Store all events
   for (const ev of allEvents) {
     if (!ev.id || !ev.start || !ev.end) continue;
+    const allDay = Boolean(ev.start.date && !ev.start.dateTime);
+    // Timed events: Google already sends RFC3339 with offset.
+    // All-day events: date-only strings mean that calendar date in the user's
+    // timezone. Google's end.date is exclusive (next day). Parsing as UTC
+    // midnight made holidays show as "7:00 PM – 6:59 PM" in US Eastern.
     const start = ev.start.dateTime
       ? new Date(ev.start.dateTime)
-      : new Date(ev.start.date + "T00:00:00");
+      : allDayInstant(ev.start.date!, userTz);
     const end = ev.end.dateTime
       ? new Date(ev.end.dateTime)
-      : new Date(ev.end.date + "T23:59:59");
-    const allDay = Boolean(ev.start.date && !ev.start.dateTime);
+      : allDayInstant(ev.end.date!, userTz);
 
     await prisma.calendarEventCache.upsert({
       where: { userId_googleEventId: { userId, googleEventId: ev.id } },
@@ -255,13 +282,14 @@ export async function createGoogleCalendarEvent(
       return { error: "CREATE_FAILED" as const, event: null };
     }
 
+    const tz = await userTimezone(userId);
+    const allDay = Boolean(ev.start.date && !ev.start.dateTime);
     const start = ev.start.dateTime
       ? new Date(ev.start.dateTime)
-      : new Date((ev.start.date ?? input.date!) + "T00:00:00");
+      : allDayInstant(ev.start.date ?? input.date!, tz);
     const end = ev.end.dateTime
       ? new Date(ev.end.dateTime)
-      : new Date((ev.end.date ?? input.date!) + "T23:59:59");
-    const allDay = Boolean(ev.start.date && !ev.start.dateTime);
+      : allDayInstant(ev.end.date ?? input.date!, tz);
 
     const cached = await prisma.calendarEventCache.upsert({
       where: { userId_googleEventId: { userId, googleEventId: ev.id } },

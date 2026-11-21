@@ -651,6 +651,7 @@ export async function getMyDay(userId: string, args: { date?: string }) {
           title: item.title,
           start: iso(item.start),
           end: iso(item.end),
+          allDay: item.allDay,
           attentionMode: item.attentionMode,
           location: item.location ?? null,
           pinned: item.pinned,
