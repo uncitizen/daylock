@@ -116,6 +116,13 @@ export async function syncGoogleCalendar(userId: string, daysAhead = 14) {
       console.log(`[syncGoogleCalendar] Skipping calendar ${cal.summary} (accessRole=${cal.accessRole})`);
       continue;
     }
+
+    // Skip Google public holiday calendars (e.g. Holidays in Ukraine).
+    // Their events clutter My Day and aren't actionable.
+    if (cal.id.includes("holiday@group.v.calendar.google.com")) {
+      console.log(`[syncGoogleCalendar] Skipping holiday calendar ${cal.summary} (${cal.id})`);
+      continue;
+    }
     
     // Note: We don't skip based on cal.selected because some calendars (like Family)
     // might have selected=undefined or false but still contain events we want to sync
