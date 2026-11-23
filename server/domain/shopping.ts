@@ -3,6 +3,27 @@ import { getPersonalWorkspaceId } from "./streams";
 
 export const STORE_PRESETS = ["Costco", "Fortinos", "Home Depot"];
 
+/**
+ * Get the workspace ID for shopping.
+ * If AUTH_SHOPPING_WORKSPACE_ID is set, use that (shared shopping).
+ * Otherwise, fall back to the user's personal workspace (separate shopping per user).
+ */
+async function getShoppingWorkspaceId(userId: string): Promise<string> {
+  const shoppingWorkspaceId = process.env.AUTH_SHOPPING_WORKSPACE_ID?.trim();
+  if (shoppingWorkspaceId) {
+    const membership = await prisma.membership.findUnique({
+      where: { workspaceId_userId: { workspaceId: shoppingWorkspaceId, userId } },
+    });
+    if (!membership) {
+      throw new Error(
+        `User ${userId} is not a member of AUTH_SHOPPING_WORKSPACE_ID: ${shoppingWorkspaceId}`,
+      );
+    }
+    return shoppingWorkspaceId;
+  }
+  return getPersonalWorkspaceId(userId);
+}
+
 /** How many "Buy again" suggestions to offer per store. */
 const BUY_AGAIN_LIMIT = 10;
 /** History window for "Buy again", in cleared items. */
@@ -14,7 +35,7 @@ function nameKey(name: string) {
 
 /** The active list, store sections and "Buy again" suggestions. */
 export async function getShoppingList(userId: string) {
-  const workspaceId = await getPersonalWorkspaceId(userId);
+  const workspaceId = await getShoppingWorkspaceId(userId);
   const [stores, items, history] = await Promise.all([
     prisma.shoppingStore.findMany({
       where: { workspaceId, archivedAt: null },
@@ -85,7 +106,7 @@ export async function findItem(itemId: string, userId: string) {
  * not duplicated; a checked copy goes back to "to buy".
  */
 export async function addItem(userId: string, input: { name: string; storeId: string | null }) {
-  const workspaceId = await getPersonalWorkspaceId(userId);
+  const workspaceId = await getShoppingWorkspaceId(userId);
   const name = input.name.trim().replace(/\s+/g, " ");
   const existing = await prisma.shoppingItem.findFirst({
     where: {
@@ -126,7 +147,7 @@ export async function deleteItem(itemId: string) {
 
 /** Clear checked items off the list, for one store or all ("" = no store). */
 export async function clearChecked(userId: string, storeId?: string | null) {
-  const workspaceId = await getPersonalWorkspaceId(userId);
+  const workspaceId = await getShoppingWorkspaceId(userId);
   return prisma.shoppingItem.updateMany({
     where: {
       workspaceId,
@@ -139,7 +160,7 @@ export async function clearChecked(userId: string, storeId?: string | null) {
 }
 
 export async function createStore(userId: string, name: string) {
-  const workspaceId = await getPersonalWorkspaceId(userId);
+  const workspaceId = await getShoppingWorkspaceId(userId);
   const max = await prisma.shoppingStore.aggregate({
     where: { workspaceId },
     _max: { sortOrder: true },
@@ -150,7 +171,7 @@ export async function createStore(userId: string, name: string) {
 }
 
 export async function createPresetStores(userId: string) {
-  const workspaceId = await getPersonalWorkspaceId(userId);
+  const workspaceId = await getShoppingWorkspaceId(userId);
   const existing = await prisma.shoppingStore.findMany({
     where: { workspaceId, archivedAt: null },
     select: { name: true },
@@ -170,7 +191,7 @@ export async function updateStore(storeId: string, input: { name?: string }) {
 
 /** Swap a store with its neighbour in the list order. */
 export async function moveStore(userId: string, storeId: string, direction: "up" | "down") {
-  const workspaceId = await getPersonalWorkspaceId(userId);
+  const workspaceId = await getShoppingWorkspaceId(userId);
   const stores = await prisma.shoppingStore.findMany({
     where: { workspaceId, archivedAt: null },
     orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
