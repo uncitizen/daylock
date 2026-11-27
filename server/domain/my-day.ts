@@ -235,7 +235,46 @@ export async function getMyDay(userId: string, date: Date) {
           },
         ];
       }),
-  ];
+  ].sort((a, b) => {
+    const now = new Date();
+    const todayStart = startOfDay(now);
+
+    // Helper to get the due date for sorting
+    const getDueDate = (item: typeof a | typeof b): Date | null => {
+      if (item.type === "occurrence" && item.dueSince) {
+        return new Date(item.dueSince);
+      }
+      if (item.type === "flex" && item.dueAt) {
+        const dueDate = new Date(item.dueAt);
+        // Only consider it past due if it's before today
+        if (dueDate < todayStart) {
+          return dueDate;
+        }
+      }
+      return null;
+    };
+
+    const aDueDate = getDueDate(a);
+    const bDueDate = getDueDate(b);
+
+    // Both are past due: sort by due date descending (most recently past due first)
+    if (aDueDate && bDueDate) {
+      return bDueDate.getTime() - aDueDate.getTime();
+    }
+
+    // Only a is past due: a comes first
+    if (aDueDate) {
+      return -1;
+    }
+
+    // Only b is past due: b comes first
+    if (bDueDate) {
+      return 1;
+    }
+
+    // Neither is past due: maintain original order
+    return 0;
+  });
 
   const suggestions = calendarEvents
     .filter(
