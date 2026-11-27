@@ -365,7 +365,36 @@ export default function MyDayPage() {
   const plannedToday = unpinnedFlex
     .filter((t) => isScheduledToday(t.dueAt))
     .sort((a, b) => new Date(a.dueAt!).getTime() - new Date(b.dueAt!).getTime());
-  const inboxFlex = unpinnedFlex.filter((t) => !isScheduledToday(t.dueAt));
+  
+  // Sort function: past due tasks first (most recently overdue first), then others
+  const sortByDueDate = (a: FlexTask | PinnableCatalogTask, b: FlexTask | PinnableCatalogTask) => {
+    const now = new Date();
+    const todayStart = startOfDay(now);
+    
+    const aDue = a.dueAt ? new Date(a.dueAt) : null;
+    const bDue = b.dueAt ? new Date(b.dueAt) : null;
+    
+    const aOverdue = aDue && aDue < todayStart;
+    const bOverdue = bDue && bDue < todayStart;
+    
+    // Both overdue: most recently overdue first (descending)
+    if (aOverdue && bOverdue) {
+      return bDue!.getTime() - aDue!.getTime();
+    }
+    
+    // Only a is overdue: a comes first
+    if (aOverdue) return -1;
+    
+    // Only b is overdue: b comes first
+    if (bOverdue) return 1;
+    
+    // Neither overdue: maintain original order
+    return 0;
+  };
+  
+  const inboxFlex = unpinnedFlex
+    .filter((t) => !isScheduledToday(t.dueAt))
+    .sort(sortByDueDate);
 
   const onMyDayIds = useMemo(() => {
     const ids = new Set<string>();
@@ -419,6 +448,7 @@ export default function MyDayPage() {
           t.title.toLowerCase().includes(q) ||
           t.streamName.toLowerCase().includes(q),
       )
+      .sort(sortByDueDate)
       .slice(0, 24);
   }, [pinnableCatalog, taskSearch]);
 
