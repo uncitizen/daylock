@@ -1,0 +1,4 @@
+# Mobile app - React Native (not for Vercel deployment)
+mobile/
+
+# Vercel should only build the Next.js web app in the root
