@@ -59,7 +59,7 @@ export async function getMyDay(userId: string, date: Date) {
   // Ensure current open chips exist before reading
   await materializeAllActiveRules();
 
-  const [items, occurrences, completedOccurrences, calendarEvents, recentFlex, scheduledFlex, completedFlexTasks] = await Promise.all([
+  const [items, occurrences, completedOccurrences, calendarEvents, overdueFlex, recentFlex, scheduledFlex, completedFlexTasks] = await Promise.all([
     prisma.myDayItem.findMany({
       where: { userId, date: dateOnly },
       orderBy: [{ pinned: "desc" }, { sortOrder: "asc" }],
@@ -105,11 +105,28 @@ export async function getMyDay(userId: string, date: Date) {
       },
       orderBy: { start: "asc" },
     }),
+    // Overdue flex tasks (most recently overdue first)
     prisma.task.findMany({
       where: {
         kind: "flex",
         completedAt: null,
         archivedAt: null,
+        dueAt: { lt: dayStart },
+        list: { workspace: { memberships: { some: { userId } } } },
+      },
+      include: { list: true },
+      orderBy: { dueAt: "desc" },
+    }),
+    // Recent flex tasks without due dates or with future due dates
+    prisma.task.findMany({
+      where: {
+        kind: "flex",
+        completedAt: null,
+        archivedAt: null,
+        OR: [
+          { dueAt: null },
+          { dueAt: { gte: dayStart } },
+        ],
         list: { workspace: { memberships: { some: { userId } } } },
       },
       include: { list: true },
@@ -141,10 +158,16 @@ export async function getMyDay(userId: string, date: Date) {
     }),
   ]);
 
-  const recentIds = new Set(recentFlex.map((t) => t.id));
+  // Combine: overdue first, then recent, then scheduled (avoiding duplicates)
+  const seenIds = new Set(overdueFlex.map((t) => t.id));
   const flexCandidates = [
-    ...recentFlex,
-    ...scheduledFlex.filter((t) => !recentIds.has(t.id)),
+    ...overdueFlex,
+    ...recentFlex.filter((t) => {
+      if (seenIds.has(t.id)) return false;
+      seenIds.add(t.id);
+      return true;
+    }),
+    ...scheduledFlex.filter((t) => !seenIds.has(t.id)),
   ];
   // Pinned tasks can be older than the newest 50 (e.g. picked from a stream backlog).
   const candidateIds = new Set(flexCandidates.map((t) => t.id));
